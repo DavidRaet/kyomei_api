@@ -89,8 +89,8 @@ This is a skeleton — check items off as completed, and expand any section into
 
 ## 8. Deployment
 
-- [ ] Deploy to **Railway** — the PRD already fixes this as the hosting platform (it will also host PostgreSQL once that lands in a later pass), so no platform evaluation needed here
-- [ ] Set environment variables/secrets on Railway (mirror `.env.example`)
+- [X] Deploy to **Railway** — the PRD already fixes this as the hosting platform (it will also host PostgreSQL once that lands in a later pass), so no platform evaluation needed here
+- [X] Set environment variables/secrets on Railway (mirror `.env.example`)
 - [ ] Deploy and verify health-check endpoint (`GET /healthz`) responds correctly in prod
 - [ ] Point a subdomain or path (e.g. `api.kyomei.app`) at the deployed service, if using a custom domain
 - [ ] Update frontend's production env var to point at deployed backend URL
