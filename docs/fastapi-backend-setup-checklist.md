@@ -54,7 +54,7 @@ This is a skeleton — check items off as completed, and expand any section into
 
 - [X] Define domain interfaces first in `app/anime/` (e.g. a `Provider` `Protocol`/ABC with `get_by_id`, `search`, `get_characters`) — mirrors the frontend's `animeProvider.ts` pattern
 - [X] Implement `app/anilist/client.py` — async GraphQL client (`httpx`), queries mirroring what `src/api/anilist.ts` already does
-- [ ] Implement `app/jikan/client.py` — async REST client (`httpx`), ported from `src/api/jikan.ts` fallback logic
+- [X] Implement `app/jikan/client.py` — async REST client (`httpx`), ported from `src/api/jikan.ts` fallback logic
 - [ ] Implement fallback orchestration in `app/anime/service.py`: try AniList, fall back to Jikan on error/timeout (`httpx` timeouts + `try/except`; use `asyncio.wait_for`/`asyncio.gather` if concurrent attempts are wanted) 
 - [ ] Implement `app/cache/` — start with in-memory (`cachetools.TTLCache` or a plain dict + expiry) or a simple LRU; note Redis as a documented upgrade path, not required for v1
 - [ ] Implement FastAPI routers in `app/routers/`: `GET /api/anime/{id}`, `GET /api/anime/search`, `GET /api/anime/{id}/characters`
