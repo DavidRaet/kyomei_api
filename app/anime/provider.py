@@ -5,8 +5,8 @@ from app.anime.models import AnimeSummary, CharacterSummary
 
 @runtime_checkable
 class Provider(Protocol):
-    """Upstream-agnostic anime data source, mirroring the frontend's animeProvider.ts abstraction. 
-        AniList is currently the only implementation."""
+    """Upstream-agnostic anime data source, mirroring the frontend's animeProvider.ts abstraction.
+    AniList is currently the only implementation."""
 
     async def get_by_id(self, mal_id: int) -> AnimeSummary:
         """Raises AnimeNotFoundError if this provider doesn't have the anime."""
