@@ -43,12 +43,12 @@ This is a skeleton — check items off as completed, and expand any section into
 
 ## 2. Dependencies & Tooling
 
-- [ ] FastAPI + Uvicorn (ASGI) — async-native, Pydantic validation, and auto-generated OpenAPI docs (`/docs`, `/openapi.json`) come for free; document this choice in README
-- [ ] Choose HTTP client for outbound calls (AniList/Jikan): `httpx` (async client with timeout config) is sufficient
-- [ ] Add config loading (`pydantic-settings` for typed env vars, or plain `python-dotenv` for local `.env`)
-- [ ] Add structured logging (stdlib `logging`, configured once at startup, is sufficient for this project size)
-- [ ] Set up `ruff` config for linting + formatting
-- [ ] Add `Makefile` or `justfile` with common commands: `run`, `test`, `lint`
+- [X] FastAPI + Uvicorn (ASGI) — async-native, Pydantic validation, and auto-generated OpenAPI docs (`/docs`, `/openapi.json`) come for free; document this choice in README
+- [X] Choose HTTP client for outbound calls (AniList/Jikan): `httpx` (async client with timeout config) is sufficient
+- [X] Add config loading (`pydantic-settings` for typed env vars, or plain `python-dotenv` for local `.env`)
+- [X] Add structured logging (stdlib `logging`, configured once at startup, is sufficient for this project size)
+- [X] Set up `ruff` config for linting + formatting
+- [X] Add `Makefile` or `justfile` with common commands: `run`, `test`, `lint`
 
 ## 3. Core Service Implementation (Skeleton Only)
 
