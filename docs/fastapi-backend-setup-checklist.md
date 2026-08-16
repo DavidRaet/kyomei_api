@@ -50,9 +50,9 @@ This is a skeleton — check items off as completed, and expand any section into
 - [X] Set up `ruff` config for linting + formatting
 - [X] Add `Makefile` or `justfile` with common commands: `run`, `test`, `lint`
 
-## 3. Core Service Implementation (Skeleton Only)
+## 3. Core Service Implementation 
 
-- [ ] Define domain interfaces first in `app/anime/` (e.g. a `Provider` `Protocol`/ABC with `get_by_id`, `search`, `get_characters`) — mirrors the frontend's `animeProvider.ts` pattern
+- [X] Define domain interfaces first in `app/anime/` (e.g. a `Provider` `Protocol`/ABC with `get_by_id`, `search`, `get_characters`) — mirrors the frontend's `animeProvider.ts` pattern
 - [ ] Implement `app/anilist/client.py` — async GraphQL client (`httpx`), queries mirroring what `src/api/anilist.ts` already does
 - [ ] Implement `app/jikan/client.py` — async REST client (`httpx`), ported from `src/api/jikan.ts` fallback logic
 - [ ] Implement fallback orchestration in `app/anime/service.py`: try AniList, fall back to Jikan on error/timeout (`httpx` timeouts + `try/except`; use `asyncio.wait_for`/`asyncio.gather` if concurrent attempts are wanted)
@@ -92,7 +92,6 @@ This is a skeleton — check items off as completed, and expand any section into
 - [X] Deploy to **Railway** — the PRD already fixes this as the hosting platform (it will also host PostgreSQL once that lands in a later pass), so no platform evaluation needed here
 - [X] Set environment variables/secrets on Railway (mirror `.env.example`)
 - [ ] Deploy and verify health-check endpoint (`GET /healthz`) responds correctly in prod
-- [ ] Point a subdomain or path (e.g. `api.kyomei.app`) at the deployed service, if using a custom domain
 - [ ] Update frontend's production env var to point at deployed backend URL
 
 ## 9. Cutover from Client-Side Fetching
