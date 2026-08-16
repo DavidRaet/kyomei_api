@@ -15,10 +15,10 @@ This is a skeleton — check items off as completed, and expand any section into
 ## 1. Repo & Project Structure
 
 - [X] Create a separate repo for clean deploy boundaries.
-- [ ] Retire the dead Go scaffold: remove `go.mod` (and `go.sum` if present) — no Go source files exist, so there's nothing to preserve
-- [ ] Replace the Go-flavored `.gitignore` with a Python one (`__pycache__/`, `*.pyc`, `.venv/`, `.env`, `.pytest_cache/`, `dist/`, `*.egg-info/`)
-- [ ] Initialize Python project: `uv init` (reason for favoring uv over poetry will be explained in the README)
-- [ ] Scaffold standard layout:
+- [X] Retire the dead Go scaffold: remove `go.mod` (and `go.sum` if present) — no Go source files exist, so there's nothing to preserve
+- [X] Replace the Go-flavored `.gitignore` with a Python one (`__pycache__/`, `*.pyc`, `.venv/`, `.env`, `.pytest_cache/`, `dist/`, `*.egg-info/`)
+- [X] Initialize Python project: `uv init` (reason for favoring uv over poetry will be explained in the README)
+- [X] Scaffold standard layout:
   ```
   kyomei-api/
   ├── app/
@@ -39,7 +39,7 @@ This is a skeleton — check items off as completed, and expand any section into
   ├── Dockerfile
   └── README.md
   ```
-- [ ] Add root `README.md` with project purpose, local run instructions
+- [X] Add root `README.md` with project purpose, local run instructions
 
 ## 2. Dependencies & Tooling
 
