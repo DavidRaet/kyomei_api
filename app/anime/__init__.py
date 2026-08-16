@@ -1,9 +1,9 @@
 """Domain logic: Provider interface (get_by_id, search, get_characters) and
-AniList->Jikan fallback orchestration.
+AniList-backed orchestration.
 
 This package defines HTTP-agnostic domain types and the Provider interface
-that app/anilist/ and app/jikan/ clients implement, and that the future
-app/anime/service.py fallback orchestrator consumes.
+that app/anilist/ implements, and that the future app/anime/service.py
+orchestrator consumes.
 """
 
 from app.anime.errors import AnimeError, AnimeNotFoundError, UpstreamError

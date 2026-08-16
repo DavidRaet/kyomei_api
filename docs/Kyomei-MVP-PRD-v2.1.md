@@ -102,18 +102,18 @@ Basic ratings         → Social recommendations    → Mobile app + integration
 
 ---
 
-### 1.3 Anime Catalog (via JikanAPI)
+### 1.3 Anime Catalog (via AniList)
 
 | Feature | Description | Priority |
 |---|---|---|
-| Anime Titles via JikanAPI | Backend connects to the JikanAPI to retrieve Anime information   | P0 |
+| Anime Titles via AniList | Backend connects to the AniList GraphQL API to retrieve Anime information   | P0 |
 | Core Metadata | Title, description, genres, episode count, rating, year, poster URL | P0 |
-| Genre/Tag Tagging | Each anime tagged with 2–5 genres (JikanAPI provides genre tags) | P0 |
+| Genre/Tag Tagging | Each anime tagged with 2–5 genres (AniList provides genre tags) | P0 |
 | Community Rating | Average user rating (5-star scale) | P1 |
 | Status Field | FINISHED, AIRING, UPCOMING | P1 |
 
 **Success Criteria:**
-- successfully connected to the JikanAPI and retrieved anime data
+- successfully connected to the AniList GraphQL API and retrieved anime data
 - No missing genres or descriptions
 - All poster URLs are valid (no 404s)
 
@@ -484,7 +484,7 @@ So that I can understand why they liked/disliked a show
 - **Vercel Blob** — File/blob storage (poster images if self-hosted)
 - **Sentry** — Error monitoring and crash reporting (FastAPI + React)
 - **Amplitude** — Product analytics and behavioral tracking
-- **JikanAPI** — Anime metadata for fetching anime catalog
+- **AniList** — Anime metadata GraphQL API; primary and sole anime data source (no fallback — see Design Decisions)
 
 ### Deployment
 - **Railway** — Hosts both the FastAPI backend and PostgreSQL database
@@ -649,7 +649,7 @@ kyomei/
 | Auth0 JWT validation misconfiguration | High — security gap | Follow Auth0's Python (FastAPI) integration guide; test with expired/invalid tokens |
 | Schema design mistakes | High — hard to fix post-deploy | Validate schema manually in PostgreSQL sandbox before first migration |
 | Poor recommendation quality | High — kills engagement | Manually validate algorithm on 10+ test profiles before launch |
-| JikanAPI rate limiting during seed | Low — one-time script | Add delay between batch requests in seed script |
+| AniList rate limiting during seed | Low — one-time script | Add delay between batch requests in seed script |
 | Recommendation cache staleness | Medium — stale recs | Invalidate cache on every new rating event |
 | Performance bottlenecks | Medium — affects retention | Indexes on user_id, anime_id; profile slow queries with EXPLAIN ANALYZE; use async endpoints for I/O-bound calls |
 | Concurrency under real load (Python/FastAPI vs. Go) | Medium — deferred, not blocking for MVP | Use async I/O consistently and add Uvicorn worker processes if load testing shows contention; revisit with Go only if this becomes a proven bottleneck post-MVP |
@@ -668,6 +668,15 @@ The `POST /v1/recommendations` endpoint — the one that matters most in the con
 - **Lost Go learning rep on this project** — the Go scaffold (`go.mod`, `docs/go-backend-setup-checklist.md`) becomes dead weight to delete or archive, and this specific project no longer builds Go reps. *Response:* accepted as a sunk cost; the MVP's job is to validate the recommendation hypothesis, not to be a Go learning vehicle — that goal moves to a dedicated future project where I can showcase concurrency/performance on purpose rather than incidentally.
 - **Concurrency under real load** — Python/FastAPI needs more deliberate handling (async I/O, worker processes) than Go gives by default under concurrent load. *Response:* manageable and deferrable at MVP scale (100–1,000 concurrent users); I'll use async endpoints consistently and add Uvicorn workers if load testing surfaces contention, revisiting Go later only if this becomes a proven, not hypothetical, bottleneck.
 - **Interface risk between frontend and backend** — swapping frameworks could have introduced drift at the API boundary. *Response:* none realized — `CONTRACT.md` was written framework-agnostic from the start, so the swap costs nothing at the interface layer.
+
+### Dropping Jikan as a Fallback Data Source
+
+**Why I made it:**
+A Jikan REST client (`app/jikan/client.py`) was implemented as the fallback data source per the original BFF design (AniList primary → Jikan fallback on error/timeout), mirroring the frontend's client-side pattern. After finishing it, I removed it and made AniList the sole upstream source for `kyomei_api`. Jikan is not a first-party MyAnimeList API — it's an unofficial scraper/wrapper around MyAnimeList's own website, which makes it flaky and prone to breaking whenever MAL's HTML or rate-limiting changes. A fallback exists to add resilience; a flaky fallback is counterproductive — it doesn't add real redundancy, and if AniList goes down, a Jikan fallback that's *also* unreliable just becomes a second shared point of failure rather than a safety net.
+
+**Tradeoffs considered & my response:**
+- **Loss of graceful degradation** — without a fallback, an AniList outage means `kyomei_api`'s anime endpoints fail outright instead of degrading to a secondary source. *Response:* accepted for MVP scope; AniList has been more stable in practice than scraping MAL, and the in-memory TTL cache already absorbs short blips. Revisit with a real, first-party fallback source if AniList reliability becomes a proven problem post-MVP, rather than reaching for Jikan again.
+- **Sunk work** — the Jikan client and its smoke test (`scripts/smoke_test_jikan.py`) were fully implemented before being removed. *Response:* accepted as a learning cost, not wasted: it validated that the `Provider` abstraction (`app/anime/provider.py`) actually supports swapping or removing upstream implementations without touching call sites.
 
 ---
 

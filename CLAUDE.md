@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current state of this repo
 
-**Scaffolding is done; domain logic is not.** `app/` exists with the full planned layout, `pyproject.toml`/`uv.lock` are checked in, CI (lint + test + Docker build) runs on every PR, and the service deploys to Railway. But `app/anime/`, `app/anilist/`, `app/jikan/`, `app/cache/`, `app/routers/`, and `app/config.py` are all **empty stub modules** (a one-line comment describing their intended contents, nothing else). The only thing actually implemented is `GET /health` in `app/main.py` itself. A prior Go scaffold (`go.mod`, `go.sum`) was created and then deleted — see "Why FastAPI, not Go" below — so **do not re-introduce Go tooling** or assume any Go code exists to port.
+**Scaffolding is done; domain logic is not.** `app/` exists with the full planned layout, `pyproject.toml`/`uv.lock` are checked in, CI (lint + test + Docker build) runs on every PR, and the service deploys to Railway. But `app/anime/`, `app/anilist/`, `app/cache/`, `app/routers/`, and `app/config.py` are all **empty stub modules** (a one-line comment describing their intended contents, nothing else). The only thing actually implemented is `GET /health` in `app/main.py` itself. A prior Go scaffold (`go.mod`, `go.sum`) was created and then deleted — see "Why FastAPI, not Go" below — so **do not re-introduce Go tooling** or assume any Go code exists to port.
 
 This maps to `docs/fastapi-backend-setup-checklist.md`: Sections 1, 2, 6, 7, and most of 8 (repo/project structure, dependencies/tooling, containerization, CI/CD, deploy) are checked off. Section 3 (core service implementation), 4 (local dev verification), 5 (testing beyond the health check), 9 (frontend cutover), and 10 (docs) are still open — **this is the actual next-work list**, not just historical context.
 
@@ -29,7 +29,7 @@ just format  # = uv run ruff format
 uv run pytest tests/test_health.py::test_health_returns_ok   # run a single test
 ```
 
-Copy `.env.example` to `.env` before running locally (`PORT`, `ANILIST_ENDPOINT`, `JIKAN_BASE_URL`, `CACHE_TTL_SECONDS` — not yet actually read by any code, since `app/config.py` is still a stub).
+Copy `.env.example` to `.env` before running locally (`PORT`, `ANILIST_ENDPOINT`, `CACHE_TTL_SECONDS` — not yet actually read by any code, since `app/config.py` is still a stub).
 
 Docker: `docker build -t kyomei-api .` / `docker run --rm -p 8000:8000 kyomei-api`. The image uses `ghcr.io/astral-sh/uv:python3.14-bookworm-slim` and installs deps in a separate layer from app code before copying `app/` in, so editing source doesn't invalidate the dependency-install layer. `CMD` reads `$PORT` at runtime (Railway sets this in prod; falls back to 8000 locally) — this only works because it uses the shell form, not exec form.
 
@@ -40,8 +40,8 @@ CI (`.github/workflows/ci.yml`) runs two independent jobs on every PR and on pus
 **This is a BFF (backend-for-frontend), not the recommendation engine described in the PRD.** The PRD (`docs/Kyomei-MVP-PRD-v2.1.md`) describes a much larger eventual system (Auth0, PostgreSQL, ratings, watchlist, recommendations). That is explicitly **out of scope** for the current phase — this repo's job right now is orchestration + caching only, per `docs/fastapi-backend-setup-checklist.md`'s "Notes for Claude Code" section:
 
 - Keep `app/main.py` wiring-only — no business logic.
-- Organize real logic under `app/` by *domain* (`anime`, `anilist`, `jikan`, `cache`), not by technical layer.
-- This service mirrors the frontend's existing provider/fallback pattern server-side — it is not a redesign. The frontend (`kyomei_0`, a separate repo) already has `src/api/animeProvider.ts` (abstraction point), `src/api/anilist.ts` (primary source), `src/api/jikan.ts` (fallback), and `src/api/cache.ts` (client-side cache). This backend is meant to be a server-side equivalent of that same AniList-primary/Jikan-fallback shape.
+- Organize real logic under `app/` by *domain* (`anime`, `anilist`, `cache`), not by technical layer.
+- This service mirrors the frontend's provider abstraction server-side, not its fallback shape. The frontend (`kyomei_0`, a separate repo) has `src/api/animeProvider.ts` (abstraction point), `src/api/anilist.ts` (data source), and `src/api/cache.ts` (client-side cache). `kyomei_api` uses AniList as its sole upstream data source — a Jikan client was implemented and then removed as a fallback (see `docs/Kyomei-MVP-PRD-v2.1.md`'s Design Decisions for why); don't reintroduce a Jikan client without revisiting that decision.
 - Don't add Redis, a database, or auth in this phase, even though the PRD describes them for later phases.
 - Favor light async libraries (`httpx`, `cachetools`) over heavier frameworks/ORMs.
 
@@ -50,9 +50,8 @@ Module layout (scaffolded; each non-`main.py` module is currently just a docstri
 ```
 app/
 ├── main.py       # FastAPI app creation, router mounting, config load — wiring only. Currently defines GET /health inline; once app/routers/ has real routers, mount them here instead of adding more inline routes.
-├── anime/        # domain logic: orchestration + AniList→Jikan fallback (Provider Protocol/ABC) — stub
+├── anime/        # domain logic: AniList-backed orchestration (Provider Protocol/ABC) — stub
 ├── anilist/       # AniList GraphQL client — stub
-├── jikan/          # Jikan REST client (fallback only) — stub
 ├── cache/          # in-memory cache (e.g. cachetools.TTLCache); Redis is a documented future upgrade, not v1 — stub
 ├── routers/        # FastAPI routers + request/response Pydantic models — stub
 └── config.py       # pydantic-settings env/config loading — stub (currently just a TODO comment; env vars in .env.example aren't wired up yet)
@@ -68,9 +67,9 @@ Note a naming inconsistency between docs: `CONTRACT.md` specifies paths under `/
 
 Current contract v1 scope (see `CONTRACT.md` for full detail):
 - `GET /health` — liveness/readiness.
-- `GET /v1/anime/{malId}` — single anime lookup, AniList primary → Jikan fallback, cached.
-- `GET /v1/anime/search` — title search, same fallback/caching.
-- `GET /v1/anime/{malId}/characters` — cast listing, same fallback/caching.
+- `GET /v1/anime/{malId}` — single anime lookup via AniList, cached.
+- `GET /v1/anime/search` — title search, same caching.
+- `GET /v1/anime/{malId}/characters` — cast listing, same caching.
 - All endpoints are public/unauthenticated in v1; JSON fields are `camelCase`; timestamps are Unix milliseconds.
 - `POST /v1/recommendations` and watchlist endpoints are drafted under "Proposed / Not Yet Confirmed" — **do not implement these** until they're moved into the contract's "Endpoints" section.
 

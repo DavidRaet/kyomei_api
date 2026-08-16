@@ -4,7 +4,7 @@
 
 This document is the single source of truth for the HTTP API boundary between:
 
-- **`kyomei_api`** — FastAPI backend service, owns AniList/Jikan orchestration + caching now, and (eventually) recommendation logic and any server-side user state.
+- **`kyomei_api`** — FastAPI backend service, owns AniList orchestration + caching now, and (eventually) recommendation logic and any server-side user state.
 - **`kyomei_0`** — TypeScript/Vite frontend, migrating anime metadata/browsing calls from direct AniList/Jikan access to `kyomei_api`, and will call it for personalized recommendations once that phase lands.
 
 This file is copy-pasted verbatim into both repositories. Neither side needs to read the other's source code — only this contract. If an endpoint, field, or status code isn't listed here, it doesn't exist yet. Propose changes via a PR to this file in both repos before implementing.
@@ -14,7 +14,7 @@ This file is copy-pasted verbatim into both repositories. Neither side needs to 
 Per `docs/fastapi-backend-setup-checklist.md`, `kyomei_api` v1 is a BFF-style orchestration layer, not a recommendation service yet — that lands in a later phase once personalization/auth work begins.
 
 **In scope for `kyomei_api` (v1):**
-- Anime lookup, search, and character listing, orchestrated server-side: AniList primary, Jikan fallback on error/timeout — a server-side mirror of what `animeProvider.ts` already does client-side.
+- Anime lookup, search, and character listing, orchestrated server-side via AniList (GraphQL) — the sole upstream data source; there is no fallback provider (see `docs/Kyomei-MVP-PRD-v2.1.md`'s Design Decisions for why Jikan was dropped rather than kept as a fallback).
 - Shared caching of the above (in-memory for v1; Redis is a documented future upgrade, not required now).
 - Basic service health reporting.
 
@@ -110,7 +110,7 @@ interface HealthResponse {
 
 ### `GET /v1/anime/{malId}`
 
-Looks up a single anime by MyAnimeList id. Tries AniList first, falls back to Jikan on error/timeout; result is cached.
+Looks up a single anime by MyAnimeList id via AniList; result is cached.
 
 **Request**
 
@@ -123,8 +123,8 @@ Path param: `malId` (positive integer). No query params, no body.
 **Response — error**
 
 - `400 Bad Request` — `malId` isn't a positive integer. Body: `ErrorResponse` with `code: "invalid_request"`.
-- `404 Not Found` — neither AniList nor Jikan has a match for `malId`. Body: `ErrorResponse` with `code: "not_found"`.
-- `500 Internal Server Error` — both upstream sources failed unexpectedly. Body: `ErrorResponse` with `code: "internal_error"`.
+- `404 Not Found` — AniList has no match for `malId`. Body: `ErrorResponse` with `code: "not_found"`.
+- `500 Internal Server Error` — the AniList request failed unexpectedly. Body: `ErrorResponse` with `code: "internal_error"`.
 
 **Example**
 
@@ -137,7 +137,7 @@ Path param: `malId` (positive integer). No query params, no body.
 
 ### `GET /v1/anime/search`
 
-Searches AniList (falling back to Jikan on error/timeout) by title.
+Searches AniList by title.
 
 **Request**
 
@@ -152,7 +152,7 @@ Query params:
 **Response — error**
 
 - `400 Bad Request` — `q` missing/empty, or `limit` out of range. Body: `ErrorResponse` with `code: "invalid_request"`.
-- `500 Internal Server Error` — both upstream sources failed unexpectedly. Body: `ErrorResponse` with `code: "internal_error"`.
+- `500 Internal Server Error` — the AniList request failed unexpectedly. Body: `ErrorResponse` with `code: "internal_error"`.
 
 **Example**
 
@@ -165,7 +165,7 @@ Query params:
 
 ### `GET /v1/anime/{malId}/characters`
 
-Lists cast for a given anime. Tries AniList first, falls back to Jikan on error/timeout; result is cached.
+Lists cast for a given anime via AniList; result is cached.
 
 **Request**
 
@@ -178,8 +178,8 @@ Path param: `malId` (positive integer). No query params, no body.
 **Response — error**
 
 - `400 Bad Request` — `malId` isn't a positive integer. Body: `ErrorResponse` with `code: "invalid_request"`.
-- `404 Not Found` — neither AniList nor Jikan has a match for `malId`. Body: `ErrorResponse` with `code: "not_found"`.
-- `500 Internal Server Error` — both upstream sources failed unexpectedly. Body: `ErrorResponse` with `code: "internal_error"`.
+- `404 Not Found` — AniList has no match for `malId`. Body: `ErrorResponse` with `code: "not_found"`.
+- `500 Internal Server Error` — the AniList request failed unexpectedly. Body: `ErrorResponse` with `code: "internal_error"`.
 
 **Example**
 
@@ -252,5 +252,6 @@ interface RecommendationsResponse {
 
 | Date | Change |
 |------|--------|
+| 2026-08-16 | Removed Jikan as fallback data source; AniList is now the sole upstream for all `/v1/anime/...` endpoints. Endpoint descriptions and error semantics ("neither AniList nor Jikan" → "AniList") updated accordingly — see `docs/Kyomei-MVP-PRD-v2.1.md`'s Design Decisions for rationale. |
 | 2026-08-13 | Reset v1 scope to match `docs/fastapi-backend-setup-checklist.md`: `GET /v1/anime/{malId}`, `GET /v1/anime/search`, `GET /v1/anime/{malId}/characters` are now in-scope (AniList-primary/Jikan-fallback orchestration + caching), with new shared types `AnimeSearchResponse`/`CharacterSummary`. `POST /v1/recommendations` moved to Proposed until personalization/auth work begins. |
 | 2026-08-10 | Initial contract: `GET /health`, `POST /v1/recommendations`, shared `AnimeSummary`/`HistoryEntry`/`ErrorResponse` types. |

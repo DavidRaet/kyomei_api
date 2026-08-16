@@ -1,7 +1,7 @@
 [project]
 name = "kyomei-api"
 version = "0.1.0"
-description = "FastAPI BFF for kyomei_0 — AniList-primary/Jikan-fallback anime data orchestration and caching"
+description = "FastAPI BFF for kyomei_0 — AniList-backed anime data orchestration and caching"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.141.1",

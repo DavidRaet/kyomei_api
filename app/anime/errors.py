@@ -3,7 +3,7 @@ class AnimeError(Exception):
 
 
 class AnimeNotFoundError(AnimeError):
-    """Raised when neither AniList nor Jikan has the requested anime."""
+    """Raised when AniList doesn't have the requested anime."""
 
     def __init__(self, mal_id: int):
         self.mal_id = mal_id
@@ -11,4 +11,4 @@ class AnimeNotFoundError(AnimeError):
 
 
 class UpstreamError(AnimeError):
-    """Raised when an upstream provider (AniList/Jikan) fails or times out and no fallback succeeds."""
+    """Raised when the upstream AniList provider fails or times out."""
