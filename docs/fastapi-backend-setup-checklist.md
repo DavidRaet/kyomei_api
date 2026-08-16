@@ -83,8 +83,8 @@ This is a skeleton — check items off as completed, and expand any section into
 
 ## 7. CI/CD
 
-- [ ] Add GitHub Actions workflow: run `ruff check`, `pytest` on every PR
-- [ ] Add build step to confirm Docker image builds successfully in CI
+- [X] Add GitHub Actions workflow: run `ruff check`, `pytest` on every PR
+- [X] Add build step to confirm Docker image builds successfully in CI
 - [ ] (Later) Add auto-deploy step once hosting platform is confirmed (Section 8)
 
 ## 8. Deployment
