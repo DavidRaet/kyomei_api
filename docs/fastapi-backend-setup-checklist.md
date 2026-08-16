@@ -77,9 +77,9 @@ This is a skeleton — check items off as completed, and expand any section into
 
 ## 6. Containerization
 
-- [ ] Write `Dockerfile` (`python:slim` base; multi-stage optional if compiling any deps)
-- [ ] Verify `docker build` and `docker run` work locally, hitting the same endpoints as `uvicorn`
-- [ ] Add `.dockerignore`
+- [X] Write `Dockerfile` (`python:slim` base; multi-stage optional if compiling any deps)
+- [X] Verify `docker build` and `docker run` work locally, hitting the same endpoints as `uvicorn`
+- [X] Add `.dockerignore`
 
 ## 7. CI/CD
 
