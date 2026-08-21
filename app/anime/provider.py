@@ -19,3 +19,12 @@ class Provider(Protocol):
     async def get_characters(self, mal_id: int) -> list[CharacterSummary]:
         """Raises AnimeNotFoundError if the anime itself doesn't exist."""
         ...
+
+    async def get_trending(self, limit: int = 20) -> list[AnimeSummary]:
+        """Empty results are valid; never raises AnimeNotFoundError."""
+        ...
+
+    async def get_seasonal(self, year: int, season: str, limit: int = 20) -> list[AnimeSummary]:
+        """`season` is one of winter/spring/summer/fall (lowercase).
+        Empty results are valid; never raises AnimeNotFoundError."""
+        ...

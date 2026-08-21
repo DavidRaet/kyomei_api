@@ -59,6 +59,26 @@ query SearchAnime($search: String, $perPage: Int) {{
 }}
 """
 
+_TRENDING_ANIME_QUERY = f"""
+query TrendingAnime($perPage: Int) {{
+  Page(page: 1, perPage: $perPage) {{
+    media(type: ANIME, sort: TRENDING_DESC) {{
+      {_MEDIA_FIELDS}
+    }}
+  }}
+}}
+"""
+
+_SEASONAL_ANIME_QUERY = f"""
+query SeasonalAnime($season: MediaSeason, $seasonYear: Int, $perPage: Int) {{
+  Page(page: 1, perPage: $perPage) {{
+    media(type: ANIME, season: $season, seasonYear: $seasonYear, sort: POPULARITY_DESC) {{
+      {_MEDIA_FIELDS}
+    }}
+  }}
+}}
+"""
+
 _GET_ANIME_CHARACTERS_QUERY = """
 query GetAnimeCharacters($idMal: Int, $perPage: Int) {
   Media(idMal: $idMal, type: ANIME) {
@@ -214,6 +234,23 @@ class AniListClient:
         payload = await self._execute(_SEARCH_ANIME_QUERY, {"search": q, "perPage": limit})
         if payload.get("errors"):
             raise UpstreamError(f"AniList search failed: {payload['errors']}")
+
+        media_list = ((payload.get("data") or {}).get("Page") or {}).get("media") or []
+        return [_media_to_summary(media) for media in media_list if media.get("idMal") is not None]
+
+    async def get_trending(self, limit: int = 20) -> list[AnimeSummary]:
+        payload = await self._execute(_TRENDING_ANIME_QUERY, {"perPage": limit})
+        if payload.get("errors"):
+            raise UpstreamError(f"AniList trending query failed: {payload['errors']}")
+
+        media_list = ((payload.get("data") or {}).get("Page") or {}).get("media") or []
+        return [_media_to_summary(media) for media in media_list if media.get("idMal") is not None]
+
+    async def get_seasonal(self, year: int, season: str, limit: int = 20) -> list[AnimeSummary]:
+        variables = {"season": season.upper(), "seasonYear": year, "perPage": limit}
+        payload = await self._execute(_SEASONAL_ANIME_QUERY, variables)
+        if payload.get("errors"):
+            raise UpstreamError(f"AniList seasonal query failed: {payload['errors']}")
 
         media_list = ((payload.get("data") or {}).get("Page") or {}).get("media") or []
         return [_media_to_summary(media) for media in media_list if media.get("idMal") is not None]

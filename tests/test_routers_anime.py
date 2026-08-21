@@ -45,6 +45,16 @@ class FakeProvider:
             raise UpstreamError("boom")
         return [SUMMARY]
 
+    async def get_trending(self, limit: int = 20) -> list[AnimeSummary]:
+        if self.raise_upstream:
+            raise UpstreamError("boom")
+        return [SUMMARY]
+
+    async def get_seasonal(self, year: int, season: str, limit: int = 20) -> list[AnimeSummary]:
+        if self.raise_upstream:
+            raise UpstreamError("boom")
+        return [SUMMARY]
+
     async def get_characters(self, mal_id: int) -> list[CharacterSummary]:
         if self.raise_not_found:
             raise AnimeNotFoundError(mal_id)
@@ -120,6 +130,64 @@ def test_search_anime_limit_out_of_range():
     response = client.get("/v1/anime/search", params={"q": "attack", "limit": 100})
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "invalid_request"
+
+
+def test_trending_anime_success():
+    use_provider(FakeProvider())
+    response = client.get("/v1/anime/trending")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["data"][0]["malId"] == 16498
+
+
+def test_trending_anime_limit_out_of_range():
+    use_provider(FakeProvider())
+    response = client.get("/v1/anime/trending", params={"limit": 100})
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "invalid_request"
+
+
+def test_trending_anime_upstream_error():
+    use_provider(FakeProvider(raise_upstream=True))
+    response = client.get("/v1/anime/trending")
+    assert response.status_code == 500
+    assert response.json()["error"]["code"] == "internal_error"
+
+
+def test_seasonal_anime_success():
+    use_provider(FakeProvider())
+    response = client.get("/v1/anime/seasonal", params={"season": "summer", "year": 2025})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["data"][0]["malId"] == 16498
+
+
+def test_seasonal_anime_defaults_to_current_season():
+    use_provider(FakeProvider())
+    response = client.get("/v1/anime/seasonal")
+    assert response.status_code == 200
+    assert response.json()["data"][0]["malId"] == 16498
+
+
+def test_seasonal_anime_invalid_season():
+    use_provider(FakeProvider())
+    response = client.get("/v1/anime/seasonal", params={"season": "bogus", "year": 2025})
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "invalid_request"
+
+
+def test_seasonal_anime_limit_out_of_range():
+    use_provider(FakeProvider())
+    response = client.get("/v1/anime/seasonal", params={"season": "summer", "year": 2025, "limit": 100})
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "invalid_request"
+
+
+def test_seasonal_anime_upstream_error():
+    use_provider(FakeProvider(raise_upstream=True))
+    response = client.get("/v1/anime/seasonal", params={"season": "summer", "year": 2025})
+    assert response.status_code == 500
+    assert response.json()["error"]["code"] == "internal_error"
 
 
 def test_get_anime_characters_success():

@@ -14,7 +14,7 @@ This file is copy-pasted verbatim into both repositories. Neither side needs to 
 Per `docs/fastapi-backend-setup-checklist.md`, `kyomei_api` v1 is a BFF-style orchestration layer, not a recommendation service yet — that lands in a later phase once personalization/auth work begins.
 
 **In scope for `kyomei_api` (v1):**
-- Anime lookup, search, and character listing, orchestrated server-side via AniList (GraphQL) — the sole upstream data source; there is no fallback provider (see `docs/Kyomei-MVP-PRD-v2.1.md`'s Design Decisions for why Jikan was dropped rather than kept as a fallback).
+- Anime lookup, search, character listing, trending, and seasonal listings, orchestrated server-side via AniList (GraphQL) — the sole upstream data source; there is no fallback provider (see `docs/Kyomei-MVP-PRD-v2.1.md`'s Design Decisions for why Jikan was dropped rather than kept as a fallback).
 - Shared caching of the above (in-memory for v1; Redis is a documented future upgrade, not required now).
 - Basic service health reporting.
 
@@ -172,6 +172,62 @@ Query params:
 { "data": [{ "malId": 20958, "titleEnglish": "Blue Lock", "titleJp": null, "image": "https://...", "score": 8.3, "episodes": 24, "year": 2022, "season": "fall", "status": "Finished Airing", "format": "TV", "genres": ["Sports"], "studios": ["8bit"] }] }
 ```
 
+### `GET /v1/anime/trending`
+
+Returns anime currently trending on AniList.
+
+**Request**
+
+Query params:
+- `limit` (number, optional, default 20, max 50).
+
+**Response — success**
+
+- `200 OK` — body is `AnimeSearchResponse`, even if `data` is an empty array.
+
+**Response — error**
+
+- `400 Bad Request` — `limit` out of range. Body: `ErrorResponse` with `code: "invalid_request"`.
+- `500 Internal Server Error` — the AniList request failed unexpectedly. Body: `ErrorResponse` with `code: "internal_error"`.
+
+**Example**
+
+```json
+// GET /v1/anime/trending?limit=10
+
+// Response 200
+{ "data": [{ "malId": 20958, "titleEnglish": "Blue Lock", "titleJp": null, "image": "https://...", "score": 8.3, "episodes": 24, "year": 2022, "season": "fall", "status": "Finished Airing", "format": "TV", "genres": ["Sports"], "studios": ["8bit"] }] }
+```
+
+### `GET /v1/anime/seasonal`
+
+Returns anime for a given anime season, sorted by popularity.
+
+**Request**
+
+Query params:
+- `season` (string, optional, one of `winter`/`spring`/`summer`/`fall`) — defaults to the current season (server-side, UTC date) if omitted.
+- `year` (number, optional) — defaults to the current year if omitted. `season` and `year` can be overridden independently.
+- `limit` (number, optional, default 20, max 50).
+
+**Response — success**
+
+- `200 OK` — body is `AnimeSearchResponse`, even if `data` is an empty array.
+
+**Response — error**
+
+- `400 Bad Request` — `season` isn't one of the four valid values, or `limit` out of range. Body: `ErrorResponse` with `code: "invalid_request"`.
+- `500 Internal Server Error` — the AniList request failed unexpectedly. Body: `ErrorResponse` with `code: "internal_error"`.
+
+**Example**
+
+```json
+// GET /v1/anime/seasonal?season=summer&year=2025
+
+// Response 200
+{ "data": [{ "malId": 20958, "titleEnglish": "Blue Lock", "titleJp": null, "image": "https://...", "score": 8.3, "episodes": 24, "year": 2025, "season": "summer", "status": "Finished Airing", "format": "TV", "genres": ["Sports"], "studios": ["8bit"] }] }
+```
+
 ### `GET /v1/anime/{malId}/characters`
 
 Lists cast for a given anime via AniList; result is cached.
@@ -261,6 +317,8 @@ interface RecommendationsResponse {
 
 | Date | Change |
 |------|--------|
+| 2026-08-21 | Added `GET /v1/anime/trending` and `GET /v1/anime/seasonal`, both returning `AnimeSearchResponse`. Removed the Scope note that trending/seasonal were unsupported. |
+| 2026-08-21 | `kyomei_0` began routing `getAnimeList`'s `search` mode through `kyomei_api` behind a feature flag, with AniList/Jikan kept as fallback. Documented that trending/seasonal have no `kyomei_api` endpoint yet and remain on direct AniList/Jikan fetch. |
 | 2026-08-21 | Added per-IP rate limiting middleware; documented the new `429 Too Many Requests` / `code: "rate_limited"` response shape, applicable globally across all endpoints. |
 | 2026-08-16 | Removed Jikan as fallback data source; AniList is now the sole upstream for all `/v1/anime/...` endpoints. Endpoint descriptions and error semantics ("neither AniList nor Jikan" → "AniList") updated accordingly — see `docs/Kyomei-MVP-PRD-v2.1.md`'s Design Decisions for rationale. |
 | 2026-08-13 | Reset v1 scope to match `docs/fastapi-backend-setup-checklist.md`: `GET /v1/anime/{malId}`, `GET /v1/anime/search`, `GET /v1/anime/{malId}/characters` are now in-scope (AniList-primary/Jikan-fallback orchestration + caching), with new shared types `AnimeSearchResponse`/`CharacterSummary`. `POST /v1/recommendations` moved to Proposed until personalization/auth work begins. |

@@ -54,15 +54,15 @@ This is a skeleton — check items off as completed, and expand any section into
 - [X] Define domain interfaces first in `app/anime/` (e.g. a `Provider` `Protocol`/ABC with `get_by_id`, `search`, `get_characters`) — mirrors the frontend's `animeProvider.ts` pattern
 - [X] Implement `app/anilist/client.py` — async GraphQL client (`httpx`), queries mirroring what `src/api/anilist.ts` already does
 - [X] ~~Implement `app/jikan/client.py`~~ — implemented, then removed. Jikan was dropped as the fallback data source (unreliable scraper/wrapper around MyAnimeList, counterproductive as a fallback); AniList is now the sole upstream source — see `docs/Kyomei-MVP-PRD-v2.1.md`'s Design Decisions
-- [X] Implement FastAPI routers in `app/routers/`: `GET /api/anime/{id}`, `GET /api/anime/search`, `GET /api/anime/{id}/characters`
+- [X] Implement FastAPI routers in `app/routers/`: `GET /api/anime/{id}`, `GET /api/anime/search`, `GET /api/anime/{id}/characters`, `GET /api/anime/trending`, `GET /api/anime/seasonal`
 - [X] Add CORS middleware (`fastapi.middleware.cors.CORSMiddleware`) scoped to the frontend's dev/prod origins
 - [X] Add request logging + basic rate limiting middleware (per-IP — e.g. `slowapi`)
 
 ## 4. Local Development
 
-- [ ] `.env.example` with required vars (e.g. `PORT`, `ANILIST_ENDPOINT`, `CACHE_TTL_SECONDS`)
-- [ ] Verify `uvicorn app.main:app --reload` starts server locally on expected port
-- [ ] Manually test each endpoint via FastAPI's auto-generated Swagger UI (`/docs`) or `curl`/Postman
+- [x] `.env.example` with required vars (e.g. `PORT`, `ANILIST_ENDPOINT`, `CACHE_TTL_SECONDS`)
+- [x] Verify `uvicorn app.main:app --reload` starts server locally on expected port
+- [x] Manually test each endpoint via FastAPI's auto-generated Swagger UI (`/docs`) or `curl`/Postman
 - [ ] Point frontend's `animeProvider.ts` at `http://localhost:<port>/api/...` behind a feature flag or env var, without removing direct-fetch fallback yet
 
 ## 5. Testing
