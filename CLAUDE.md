@@ -2,55 +2,81 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Summary
+## Current state of this repo
 
-Kyomei is a personalized anime recommendation app. This repo (`kyomei_api`, module `github.com/DavidRaet/kyomei-api`) is the **Go backend**. The frontend lives in a **separate repo** (`kyomei_0`, Vite + React + TypeScript) which currently fetches anime data client-side via `src/api/animeProvider.ts` (with `anilist.ts` as primary source, `jikan.ts` as fallback, `cache.ts` for client-side caching).
+**Scaffolding and the three v1 anime endpoints are done; caching is not.** `app/anime/` (models, errors, `Provider` protocol), `app/anilist/client.py` (async AniList GraphQL client), `app/routers/` (the anime router, camelCase Pydantic schemas, exception handlers), and `app/config.py` (`pydantic-settings`, wired into `app/main.py`) are all implemented — `GET /health` plus all three contract endpoints (`GET /v1/anime/{malId}`, `GET /v1/anime/search`, `GET /v1/anime/{malId}/characters`) work end-to-end against AniList. `app/cache/` is still an **empty stub module** (a one-line comment, nothing else): despite `CONTRACT.md` describing these responses as cached, every request currently hits AniList directly, and the `CACHE_TTL_SECONDS` setting in `app/config.py` isn't read by anything yet. There's also no separate orchestration layer (`app/anime/service.py`) — `AniListClient` implements the `Provider` protocol directly and is used as-is. A prior Go scaffold (`go.mod`, `go.sum`) was created and then deleted — see "Why FastAPI, not Go" below — so **do not re-introduce Go tooling** or assume any Go code exists to port.
 
-The current phase's goal is to stand up a Go service that sits behind `animeProvider.ts`, owning API orchestration (AniList primary + Jikan fallback) and shared caching — a server-side mirror of what the frontend already does client-side. Auth and personalization/recommendations are explicitly **out of scope for this phase** and covered by later, separate work.
+This maps to `docs/fastapi-backend-setup-checklist.md`: Sections 1, 2, 6, 7, and most of 8 (repo/project structure, dependencies/tooling, containerization, CI/CD, deploy) are checked off. Section 3 (core service implementation) is now mostly done — domain interfaces, the AniList client, the routers, and CORS middleware (scoped to `app/config.py`'s `cors_allowed_origins`, dev origin `http://localhost:5173` and prod origin `https://kyomei-0.vercel.app`) are all implemented; rate limiting is the remaining open item. Section 4 (local dev verification), 9 (frontend cutover), and 10 (docs) are still open. Section 5 (testing) has router-level tests (`tests/test_routers_anime.py`, exercising a fake `Provider` for success/404/400/500 paths on all three endpoints) but still lacks unit tests for `app/anilist/client.py` against mocked HTTP responses and an integration test against a running server — **this remaining set is the actual next-work list**, not just historical context.
 
-## Current Repo State
+Before writing code, read, in this order:
+1. `docs/fastapi-backend-setup-checklist.md` — the task list; check which items are still unchecked before assuming something is or isn't built.
+2. `CONTRACT.md` — the authoritative HTTP contract with the frontend (`kyomei_0`).
+3. `docs/Kyomei-MVP-PRD-v2.1.md` — full product context; most of it (auth, Postgres, recommendations) is **out of scope for this repo's current phase**, but explains where things are headed.
 
-This repo is a bare skeleton: `go.mod` (Go 1.26.3, no dependencies yet) plus a planning doc at `docs/go-backend-setup-checklist.md`. **No Go source files exist yet** — no `cmd/`, no `internal/`, no `main.go`. There is no Makefile, no CI, no Dockerfile, no tests.
+Follow the existing layout under `app/` (see "Architecture" below) rather than inventing a different structure — the module boundaries already exist, they just need implementations filled in.
 
-There are no working build/test commands yet because there's no code to build or test. Once `cmd/api/main.go` and packages under `internal/` exist (per the architecture below), the standard Go commands apply:
+When writing or debugging AniList GraphQL queries (in `app/anilist/client.py` or elsewhere), use the `anilist-graphql` skill rather than guessing at the schema.
 
-- `go run ./cmd/api` — run the server locally
-- `go build ./...` — build all packages
-- `go test ./...` — run all tests; `go test ./internal/anime/...` to scope to one package
-- `go vet ./...` — static analysis
+## Commands
 
-Don't assume a Makefile, linter config, or CI pipeline exists — check before referencing one, since none are in the repo yet.
-
-## Architecture — Near-Term (build this first)
-
-Per `docs/go-backend-setup-checklist.md`, the intended layout organizes `internal/` by **domain**, not technical layer:
+This project uses **`uv`** (not poetry/pip directly). A `justfile` wraps the common ones — prefer `just <target>` over calling `uv run ...` directly:
 
 ```
-cmd/api/main.go          # wiring only — load config, start server; no business logic
-internal/
-  anime/                 # domain logic: Provider interface (GetByID, Search, GetCharacters), fallback orchestration
-  anilist/                # AniList GraphQL client (mirrors frontend's anilist.ts)
-  jikan/                  # Jikan REST client, fallback (mirrors frontend's jikan.ts)
-  cache/                  # caching layer — start in-memory (sync.Map + TTL or simple LRU); Redis is a later upgrade, not required now
-  transport/http/          # HTTP handlers, routing, middleware (CORS, request logging, per-IP rate limiting)
-  config/                  # env/config loading
+uv sync                                          # install dependencies
+just run     # = uv run uvicorn app.main:app --reload
+just test    # = uv run pytest
+just lint    # = uv run ruff check
+just format  # = uv run ruff format
+
+uv run pytest tests/test_health.py::test_health_returns_ok   # run a single test
 ```
 
-Design rules that apply to this phase:
+`ruff` (`pyproject.toml`'s `[tool.ruff]`) enforces `E`, `F`, `I` (pyflakes/pycodestyle/import-sort) at a 120-char line length with double-quote formatting — match this style rather than an 80/100-char or single-quote convention.
 
-- Keep `cmd/api/main.go` minimal — wiring only.
-- Organize `internal/` by domain (`anime`, `anilist`, `jikan`, `cache`), not by technical layer (no generic `handlers`/`services`/`models` grab-bags).
-- Match the frontend's existing provider/fallback pattern conceptually: try AniList, fall back to Jikan on error/timeout. This is a server-side mirror of `animeProvider.ts`, not a redesign.
-- **Do not introduce a database, Redis, or auth in this phase.** Those are deferred to later, separate work (see below).
-- Favor stdlib-first, idiomatic Go over heavy frameworks (`net/http` + a lightweight router if needed) — this project doubles as Go-learning practice, so prefer simplicity over batteries-included frameworks.
-- Planned first endpoints: `GET /api/anime/:id`, `GET /api/anime/search`, `GET /api/anime/:id/characters`, plus `GET /healthz`.
+Copy `.env.example` to `.env` before running locally (`PORT`, `ANILIST_ENDPOINT`, `CACHE_TTL_SECONDS` — not yet actually read by any code, since `app/config.py` is still a stub).
 
-## Architecture — Long-Term Vision (later phases, not started)
+Docker: `docker build -t kyomei-api .` / `docker run --rm -p 8000:8000 kyomei-api`. The image uses `ghcr.io/astral-sh/uv:python3.14-bookworm-slim` and installs deps in a separate layer from app code before copying `app/` in, so editing source doesn't invalidate the dependency-install layer. `CMD` reads `$PORT` at runtime (Railway sets this in prod; falls back to 8000 locally) — this only works because it uses the shell form, not exec form.
 
-A separate PRD describes a much larger eventual scope for Kyomei, layered on top of this backend once the near-term BFF phase is solid: Auth0-based auth (JWT validated via Auth0's JWKS endpoint), a PostgreSQL database (`users`, `user_preferences`, `anime`, `user_ratings`, `user_watchlist`), a content-based recommendation engine (tag-matching + rating boost), a "vibe check" onboarding survey, ratings, and a watchlist — eventually with the Go server serving the compiled React frontend as a single deployable.
+CI (`.github/workflows/ci.yml`) runs two independent jobs on every PR and on push to `main`: `lint-and-test` (`uv sync`, `ruff check`, `pytest`) and `docker-build` (`docker build` only, no push). See `docs/learning/cicd-notes.md` and `docs/learning/docker-notes.md` for the reasoning behind these setups if you need to modify them.
 
-That PRD's proposed structure (`cmd/server`, `internal/auth`, `internal/handlers`, `internal/db`, `internal/recommendations`, `internal/models`) **differs from the near-term checklist's layout above** and assumes the frontend is folded into this repo rather than staying separate (`kyomei_0`). Treat the PRD as directional context for where the product is headed, not as the current architecture to build against — the checklist's domain-oriented layout and "no DB/auth yet" stance is what governs this phase. If/when auth or persistence work actually begins, expect the folder structure to be reconciled explicitly at that time rather than assumed from the PRD.
+## Architecture
 
-## Key External Dependency
+**This is a BFF (backend-for-frontend), not the recommendation engine described in the PRD.** The PRD (`docs/Kyomei-MVP-PRD-v2.1.md`) describes a much larger eventual system (Auth0, PostgreSQL, ratings, watchlist, recommendations). That is explicitly **out of scope** for the current phase — this repo's job right now is orchestration + caching only, per `docs/fastapi-backend-setup-checklist.md`'s "Notes for Claude Code" section:
 
-The separate `kyomei_0` frontend repo and its `src/api/animeProvider.ts` abstraction are the consumer this service is built for. Keep client-facing endpoint shapes compatible with what that abstraction already expects from AniList/Jikan, since the intent is for the frontend to eventually call this backend instead of fetching directly.
+- Keep `app/main.py` wiring-only — no business logic.
+- Organize real logic under `app/` by *domain* (`anime`, `anilist`, `cache`), not by technical layer.
+- This service mirrors the frontend's provider abstraction server-side, not its fallback shape. The frontend (`kyomei_0`, a separate repo) has `src/api/animeProvider.ts` (abstraction point), `src/api/anilist.ts` (data source), and `src/api/cache.ts` (client-side cache). `kyomei_api` uses AniList as its sole upstream data source — a Jikan client was implemented and then removed as a fallback (see `docs/Kyomei-MVP-PRD-v2.1.md`'s Design Decisions for why); don't reintroduce a Jikan client without revisiting that decision.
+- Don't add Redis, a database, or auth in this phase, even though the PRD describes them for later phases.
+- Favor light async libraries (`httpx`, `cachetools`) over heavier frameworks/ORMs.
+
+Module layout — `app/cache/` is still a docstring-only stub (read the one-line comment at the top of its `__init__.py`); everything else below is implemented:
+
+```
+app/
+├── main.py       # FastAPI app creation, lifespan-managed AniListClient, router mounting, config load — wiring only. Defines GET /health inline; app/routers/anime.py is mounted for the /v1/anime/... endpoints.
+├── anime/        # domain logic: models.py (AnimeSummary/CharacterSummary), errors.py (AnimeNotFoundError/UpstreamError), provider.py (Provider Protocol) — implemented. No separate orchestration/service.py yet; AniListClient implements Provider directly.
+├── anilist/       # client.py — async AniList GraphQL client (httpx), implements Provider structurally — implemented
+├── cache/          # in-memory cache (e.g. cachetools.TTLCache); Redis is a documented future upgrade, not v1 — still a stub, not implemented
+├── routers/        # anime.py (the three /v1/anime endpoints) + schemas.py (camelCase Pydantic I/O models) + errors.py (exception handlers for 400/404/500) — implemented
+└── config.py       # pydantic-settings Settings (port, anilist_endpoint, cache_ttl_seconds, cors_allowed_origins), loaded in main.py — implemented; anilist_endpoint feeds AniListClient, cors_allowed_origins feeds CORSMiddleware, port and cache_ttl_seconds aren't read anywhere yet
+```
+
+### The API contract is `CONTRACT.md`, not the PRD
+
+`CONTRACT.md` is copy-pasted verbatim into both this repo and the frontend repo (`kyomei_0`) and is the single source of truth for the HTTP boundary between them — **if an endpoint, field, or status code isn't listed there, it doesn't exist yet.** Propose contract changes via a PR to that file in both repos before implementing.
+
+Note a naming inconsistency between docs: `CONTRACT.md` specifies paths under `/v1/...` (e.g. `GET /v1/anime/{malId}`), while the older checklist text and PRD reference `/api/...` paths. Treat `CONTRACT.md`'s `/v1/...` paths as authoritative when implementing routers.
+
+**Any change to the HTTP API boundary — new/changed endpoints, request or response fields, status codes, or error shapes — must be reflected in `CONTRACT.md` in the same change.** `CONTRACT.md` is copy-pasted verbatim into the frontend repo (`kyomei_0`), so an update here without a matching update there (and vice versa) puts the two repos out of sync silently.
+
+Current contract v1 scope (see `CONTRACT.md` for full detail):
+- `GET /health` — liveness/readiness.
+- `GET /v1/anime/{malId}` — single anime lookup via AniList, cached.
+- `GET /v1/anime/search` — title search, same caching.
+- `GET /v1/anime/{malId}/characters` — cast listing, same caching.
+- All endpoints are public/unauthenticated in v1; JSON fields are `camelCase`; timestamps are Unix milliseconds.
+- `POST /v1/recommendations` and watchlist endpoints are drafted under "Proposed / Not Yet Confirmed" — **do not implement these** until they're moved into the contract's "Endpoints" section.
+
+### Why FastAPI, not Go
+
+The repo originally started as a Go scaffold (`go mod init` only, no source). Per the PRD's "Design Decisions" section, the backend language was changed to Python/FastAPI because the core recommendation logic is a data-shaping/ranking problem better suited to Python's ecosystem, and FastAPI's async-native design plus Pydantic validation maps closely to the TypeScript interfaces already fixed in `CONTRACT.md`. The Go scaffold was retired (`go.mod` removed, `.gitignore` switched from Go- to Python-flavored) since there was no Go source to port.
