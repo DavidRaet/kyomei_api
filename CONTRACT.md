@@ -1,6 +1,6 @@
 # Kyomei API Contract
 
-**Last updated:** 2026-08-13
+**Last updated:** 2026-08-21
 
 This document is the single source of truth for the HTTP API boundary between:
 
@@ -30,6 +30,15 @@ Per `docs/fastapi-backend-setup-checklist.md`, `kyomei_api` v1 is a BFF-style or
 - Field names in JSON bodies are `camelCase`. 
 - Timestamps are Unix milliseconds (`number`), matching `WatchlistEntry.addedAt` convention already used in `kyomei_0`.
 - No endpoint requires authentication in v1 (see Auth section).
+
+## Rate Limiting
+
+All endpoints (including `GET /health`) are rate-limited per client IP. Exceeding the limit returns:
+
+- `429 Too Many Requests` — body: `ErrorResponse` with `code: "rate_limited"`.
+- May include a `Retry-After` header (seconds until the window resets); its absence is not a guarantee of no limit.
+
+The limit itself is an operational detail and may be tuned without a contract change.
 
 ## Shared Types
 
@@ -252,6 +261,7 @@ interface RecommendationsResponse {
 
 | Date | Change |
 |------|--------|
+| 2026-08-21 | Added per-IP rate limiting middleware; documented the new `429 Too Many Requests` / `code: "rate_limited"` response shape, applicable globally across all endpoints. |
 | 2026-08-16 | Removed Jikan as fallback data source; AniList is now the sole upstream for all `/v1/anime/...` endpoints. Endpoint descriptions and error semantics ("neither AniList nor Jikan" → "AniList") updated accordingly — see `docs/Kyomei-MVP-PRD-v2.1.md`'s Design Decisions for rationale. |
 | 2026-08-13 | Reset v1 scope to match `docs/fastapi-backend-setup-checklist.md`: `GET /v1/anime/{malId}`, `GET /v1/anime/search`, `GET /v1/anime/{malId}/characters` are now in-scope (AniList-primary/Jikan-fallback orchestration + caching), with new shared types `AnimeSearchResponse`/`CharacterSummary`. `POST /v1/recommendations` moved to Proposed until personalization/auth work begins. |
 | 2026-08-10 | Initial contract: `GET /health`, `POST /v1/recommendations`, shared `AnimeSummary`/`HistoryEntry`/`ErrorResponse` types. |

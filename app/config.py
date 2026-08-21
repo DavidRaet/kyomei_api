@@ -12,6 +12,8 @@ class Settings(BaseSettings):
         "http://localhost:5173",
         "https://kyomei-0.vercel.app",
     ]
+    rate_limit_per_minute: int = 60
+    rate_limit_enabled: bool = True
 
     model_config = {"env_file": ".env"}
 
