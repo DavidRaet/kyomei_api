@@ -55,7 +55,7 @@ This is a skeleton — check items off as completed, and expand any section into
 - [X] Implement `app/anilist/client.py` — async GraphQL client (`httpx`), queries mirroring what `src/api/anilist.ts` already does
 - [X] ~~Implement `app/jikan/client.py`~~ — implemented, then removed. Jikan was dropped as the fallback data source (unreliable scraper/wrapper around MyAnimeList, counterproductive as a fallback); AniList is now the sole upstream source — see `docs/Kyomei-MVP-PRD-v2.1.md`'s Design Decisions
 - [X] Implement FastAPI routers in `app/routers/`: `GET /api/anime/{id}`, `GET /api/anime/search`, `GET /api/anime/{id}/characters`
-- [ ] Add CORS middleware (`fastapi.middleware.cors.CORSMiddleware`) scoped to the frontend's dev/prod origins
+- [X] Add CORS middleware (`fastapi.middleware.cors.CORSMiddleware`) scoped to the frontend's dev/prod origins
 - [ ] Add request logging + basic rate limiting middleware (per-IP — e.g. `slowapi`)
 
 ## 4. Local Development

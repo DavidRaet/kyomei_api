@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Scaffolding and the three v1 anime endpoints are done; caching is not.** `app/anime/` (models, errors, `Provider` protocol), `app/anilist/client.py` (async AniList GraphQL client), `app/routers/` (the anime router, camelCase Pydantic schemas, exception handlers), and `app/config.py` (`pydantic-settings`, wired into `app/main.py`) are all implemented — `GET /health` plus all three contract endpoints (`GET /v1/anime/{malId}`, `GET /v1/anime/search`, `GET /v1/anime/{malId}/characters`) work end-to-end against AniList. `app/cache/` is still an **empty stub module** (a one-line comment, nothing else): despite `CONTRACT.md` describing these responses as cached, every request currently hits AniList directly, and the `CACHE_TTL_SECONDS` setting in `app/config.py` isn't read by anything yet. There's also no separate orchestration layer (`app/anime/service.py`) — `AniListClient` implements the `Provider` protocol directly and is used as-is. A prior Go scaffold (`go.mod`, `go.sum`) was created and then deleted — see "Why FastAPI, not Go" below — so **do not re-introduce Go tooling** or assume any Go code exists to port.
 
-This maps to `docs/fastapi-backend-setup-checklist.md`: Sections 1, 2, 6, 7, and most of 8 (repo/project structure, dependencies/tooling, containerization, CI/CD, deploy) are checked off. Section 3 (core service implementation) is now mostly done — domain interfaces, the AniList client, and the routers are all implemented; CORS middleware and rate limiting are the remaining open items. Section 4 (local dev verification), 9 (frontend cutover), and 10 (docs) are still open. Section 5 (testing) has router-level tests (`tests/test_routers_anime.py`, exercising a fake `Provider` for success/404/400/500 paths on all three endpoints) but still lacks unit tests for `app/anilist/client.py` against mocked HTTP responses and an integration test against a running server — **this remaining set is the actual next-work list**, not just historical context.
+This maps to `docs/fastapi-backend-setup-checklist.md`: Sections 1, 2, 6, 7, and most of 8 (repo/project structure, dependencies/tooling, containerization, CI/CD, deploy) are checked off. Section 3 (core service implementation) is now mostly done — domain interfaces, the AniList client, the routers, and CORS middleware (scoped to `app/config.py`'s `cors_allowed_origins`, dev origin `http://localhost:5173` and prod origin `https://kyomei-0.vercel.app`) are all implemented; rate limiting is the remaining open item. Section 4 (local dev verification), 9 (frontend cutover), and 10 (docs) are still open. Section 5 (testing) has router-level tests (`tests/test_routers_anime.py`, exercising a fake `Provider` for success/404/400/500 paths on all three endpoints) but still lacks unit tests for `app/anilist/client.py` against mocked HTTP responses and an integration test against a running server — **this remaining set is the actual next-work list**, not just historical context.
 
 Before writing code, read, in this order:
 1. `docs/fastapi-backend-setup-checklist.md` — the task list; check which items are still unchecked before assuming something is or isn't built.
@@ -14,6 +14,8 @@ Before writing code, read, in this order:
 3. `docs/Kyomei-MVP-PRD-v2.1.md` — full product context; most of it (auth, Postgres, recommendations) is **out of scope for this repo's current phase**, but explains where things are headed.
 
 Follow the existing layout under `app/` (see "Architecture" below) rather than inventing a different structure — the module boundaries already exist, they just need implementations filled in.
+
+When writing or debugging AniList GraphQL queries (in `app/anilist/client.py` or elsewhere), use the `anilist-graphql` skill rather than guessing at the schema.
 
 ## Commands
 
@@ -28,6 +30,8 @@ just format  # = uv run ruff format
 
 uv run pytest tests/test_health.py::test_health_returns_ok   # run a single test
 ```
+
+`ruff` (`pyproject.toml`'s `[tool.ruff]`) enforces `E`, `F`, `I` (pyflakes/pycodestyle/import-sort) at a 120-char line length with double-quote formatting — match this style rather than an 80/100-char or single-quote convention.
 
 Copy `.env.example` to `.env` before running locally (`PORT`, `ANILIST_ENDPOINT`, `CACHE_TTL_SECONDS` — not yet actually read by any code, since `app/config.py` is still a stub).
 
@@ -54,7 +58,7 @@ app/
 ├── anilist/       # client.py — async AniList GraphQL client (httpx), implements Provider structurally — implemented
 ├── cache/          # in-memory cache (e.g. cachetools.TTLCache); Redis is a documented future upgrade, not v1 — still a stub, not implemented
 ├── routers/        # anime.py (the three /v1/anime endpoints) + schemas.py (camelCase Pydantic I/O models) + errors.py (exception handlers for 400/404/500) — implemented
-└── config.py       # pydantic-settings Settings (port, anilist_endpoint, cache_ttl_seconds), loaded in main.py — implemented; anilist_endpoint feeds AniListClient, port and cache_ttl_seconds aren't read anywhere yet
+└── config.py       # pydantic-settings Settings (port, anilist_endpoint, cache_ttl_seconds, cors_allowed_origins), loaded in main.py — implemented; anilist_endpoint feeds AniListClient, cors_allowed_origins feeds CORSMiddleware, port and cache_ttl_seconds aren't read anywhere yet
 ```
 
 ### The API contract is `CONTRACT.md`, not the PRD
