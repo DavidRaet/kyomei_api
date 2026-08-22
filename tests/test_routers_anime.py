@@ -1,9 +1,30 @@
 from fastapi.testclient import TestClient
 
 from app.anime.errors import AnimeNotFoundError, UpstreamError
-from app.anime.models import AnimeSummary, CharacterSummary
+from app.anime.models import AnimeDetail, AnimeSummary, CharacterSummary, VoiceActorSummary
 from app.main import app
 from app.routers.anime import get_provider
+
+DETAIL = AnimeDetail(
+    mal_id=16498,
+    title_english="Attack on Titan",
+    title_jp="進撃の巨人",
+    image="https://example.com/aot.jpg",
+    score=8.5,
+    episodes=25,
+    year=2013,
+    season="spring",
+    status="Finished Airing",
+    format="TV",
+    genres=["Action", "Drama"],
+    studios=["Wit Studio"],
+    title_romaji="Shingeki no Kyojin",
+    synopsis="Centuries ago, mankind was slaughtered...",
+    duration_minutes=24,
+    aired_from="2013-04-07",
+    aired_to="2013-09-29",
+    trailer_image="https://example.com/trailer.jpg",
+)
 
 SUMMARY = AnimeSummary(
     mal_id=16498,
@@ -25,6 +46,14 @@ CHARACTER = CharacterSummary(
     name="Eren Yeager",
     image="https://example.com/eren.jpg",
     role="Main",
+    favorites=120000,
+    voice_actors=[
+        VoiceActorSummary(
+            language="Japanese",
+            name="Yuki Kaji",
+            image="https://example.com/kaji.jpg",
+        )
+    ],
 )
 
 
@@ -33,12 +62,12 @@ class FakeProvider:
         self.raise_not_found = raise_not_found
         self.raise_upstream = raise_upstream
 
-    async def get_by_id(self, mal_id: int) -> AnimeSummary:
+    async def get_by_id(self, mal_id: int) -> AnimeDetail:
         if self.raise_not_found:
             raise AnimeNotFoundError(mal_id)
         if self.raise_upstream:
             raise UpstreamError("boom")
-        return SUMMARY
+        return DETAIL
 
     async def search(self, q: str, limit: int = 20) -> list[AnimeSummary]:
         if self.raise_upstream:
@@ -82,7 +111,13 @@ def test_get_anime_success():
     assert body["malId"] == 16498
     assert body["titleEnglish"] == "Attack on Titan"
     assert body["titleJp"] == "進撃の巨人"
+    assert body["titleRomaji"] == "Shingeki no Kyojin"
     assert body["studios"] == ["Wit Studio"]
+    assert body["synopsis"] == "Centuries ago, mankind was slaughtered..."
+    assert body["durationMinutes"] == 24
+    assert body["airedFrom"] == "2013-04-07"
+    assert body["airedTo"] == "2013-09-29"
+    assert body["trailerImage"] == "https://example.com/trailer.jpg"
 
 
 def test_get_anime_not_found():
@@ -197,6 +232,21 @@ def test_get_anime_characters_success():
     body = response.json()
     assert body["data"][0]["malId"] == 40882
     assert body["data"][0]["name"] == "Eren Yeager"
+    assert body["data"][0]["favorites"] == 120000
+    assert body["data"][0]["voiceActors"] == [
+        {"language": "Japanese", "name": "Yuki Kaji", "image": "https://example.com/kaji.jpg"}
+    ]
+
+
+def test_search_anime_does_not_include_detail_fields():
+    use_provider(FakeProvider())
+    response = client.get("/v1/anime/search", params={"q": "attack"})
+    assert response.status_code == 200
+    item = response.json()["data"][0]
+    assert "synopsis" not in item
+    assert "durationMinutes" not in item
+    assert "trailerImage" not in item
+    assert "titleRomaji" not in item
 
 
 def test_get_anime_characters_not_found():

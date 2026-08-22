@@ -5,7 +5,7 @@
 ```python
 @runtime_checkable
 class Provider(Protocol):
-    async def get_by_id(self, mal_id: int) -> AnimeSummary: ...
+    async def get_by_id(self, mal_id: int) -> AnimeDetail: ...
     async def search(self, q: str, limit: int = 20) -> list[AnimeSummary]: ...
     async def get_characters(self, mal_id: int) -> list[CharacterSummary]: ...
 ```
@@ -35,10 +35,10 @@ sequenceDiagram
     AniList-->>AniListClient: JSON { data: { Media: {...} } }
 
     alt Media found
-        AniListClient->>AniListClient: _media_to_summary(media) -> AnimeSummary
-        AniListClient-->>Router: AnimeSummary (snake_case domain model)
-        Router->>Router: AnimeSummaryOut.model_validate(summary) -> camelCase
-        Router-->>FastAPI: AnimeSummaryOut
+        AniListClient->>AniListClient: _media_to_detail(media) -> AnimeDetail
+        AniListClient-->>Router: AnimeDetail (snake_case domain model)
+        Router->>Router: AnimeDetailOut.model_validate(detail) -> camelCase
+        Router-->>FastAPI: AnimeDetailOut
         FastAPI-->>Client: 200 { "malId": 16498, "titleEnglish": "...", ... }
     else Media is null
         AniListClient-->>Router: raise AnimeNotFoundError(16498)
@@ -59,7 +59,7 @@ sequenceDiagram
 | Router | `app/routers/anime.py` | Parses/validates the HTTP request (`mal_id: int = Path(..., gt=0)`), calls the provider, maps the domain model to the wire-format (camelCase) response model. No AniList-specific logic. |
 | Dependency | `app/routers/anime.py::get_provider` | Reads `request.app.state.provider` — the single `AniListClient` instance created once at startup (see `lifespan()` in `app/main.py`), not a new one per request. |
 | Protocol | `app/anime/provider.py` | Compile-time-only contract. Defines *what* a provider must do, never *how*. |
-| Domain models/errors | `app/anime/models.py`, `app/anime/errors.py` | `AnimeSummary`/`CharacterSummary` (snake_case, upstream-agnostic), `AnimeNotFoundError`/`UpstreamError`. |
+| Domain models/errors | `app/anime/models.py`, `app/anime/errors.py` | `AnimeSummary`/`AnimeDetail`/`CharacterSummary`/`VoiceActorSummary` (snake_case, upstream-agnostic), `AnimeNotFoundError`/`UpstreamError`. |
 | Concrete provider | `app/anilist/client.py` | The only class that actually talks to AniList: builds the GraphQL query, sends it via `httpx`, maps the JSON response into domain models, translates AniList-specific failure modes into the shared domain errors above. |
 | Error mapping | `app/routers/errors.py` | Registered on the `FastAPI` app; catches domain errors/`RequestValidationError` and turns them into the `{ "error": { "code", "message" } }` shape from `CONTRACT.md`. |
 

@@ -12,7 +12,7 @@ import httpx
 from pydantic import ValidationError
 
 from app.anime.errors import AnimeNotFoundError, UpstreamError
-from app.anime.models import AnimeSummary, CharacterSummary
+from app.anime.models import AnimeDetail, AnimeSummary, CharacterSummary, VoiceActorSummary
 
 _DEFAULT_ENDPOINT = "https://graphql.anilist.co"
 _CHARACTERS_PAGE_SIZE = 25
@@ -41,10 +41,29 @@ _MEDIA_FIELDS = """
     }
 """
 
+_MEDIA_DETAIL_FIELDS = f"""
+    {_MEDIA_FIELDS}
+    description
+    duration
+    startDate {{
+      year
+      month
+      day
+    }}
+    endDate {{
+      year
+      month
+      day
+    }}
+    trailer {{
+      thumbnail
+    }}
+"""
+
 _GET_ANIME_BY_ID_QUERY = f"""
 query GetAnimeById($idMal: Int) {{
   Media(idMal: $idMal, type: ANIME) {{
-    {_MEDIA_FIELDS}
+    {_MEDIA_DETAIL_FIELDS}
   }}
 }}
 """
@@ -86,6 +105,15 @@ query GetAnimeCharacters($idMal: Int, $perPage: Int) {
     characters(sort: [ROLE, RELEVANCE], perPage: $perPage) {
       edges {
         role
+        voiceActors {
+          languageV2
+          name {
+            full
+          }
+          image {
+            large
+          }
+        }
         node {
           id
           name {
@@ -94,6 +122,7 @@ query GetAnimeCharacters($idMal: Int, $perPage: Int) {
           image {
             large
           }
+          favourites
         }
       }
     }
@@ -120,7 +149,7 @@ _FORMAT_MAP = {
 }
 
 
-def _media_to_summary(media: dict[str, Any]) -> AnimeSummary:
+def _summary_kwargs(media: dict[str, Any]) -> dict[str, Any]:
     title = media.get("title") or {}
     title_english = title.get("english") or title.get("romaji") or title.get("native") or "Unknown Title"
 
@@ -137,23 +166,66 @@ def _media_to_summary(media: dict[str, Any]) -> AnimeSummary:
 
     studios = [node["name"] for node in (media.get("studios") or {}).get("nodes") or []]
 
+    return {
+        "mal_id": media["idMal"],
+        "title_english": title_english,
+        "title_jp": title.get("native"),
+        "image": (media.get("coverImage") or {}).get("large") or "",
+        "score": score,
+        "episodes": media.get("episodes"),
+        "year": media.get("seasonYear"),
+        "season": season.lower() if season else None,
+        "status": status,
+        "format": format_,
+        "genres": media.get("genres") or [],
+        "studios": studios,
+    }
+
+
+def _media_to_summary(media: dict[str, Any]) -> AnimeSummary:
     try:
-        return AnimeSummary(
-            mal_id=media["idMal"],
-            title_english=title_english,
-            title_jp=title.get("native"),
-            image=(media.get("coverImage") or {}).get("large") or "",
-            score=score,
-            episodes=media.get("episodes"),
-            year=media.get("seasonYear"),
-            season=season.lower() if season else None,
-            status=status,
-            format=format_,
-            genres=media.get("genres") or [],
-            studios=studios,
+        return AnimeSummary(**_summary_kwargs(media))
+    except (ValidationError, KeyError, TypeError) as exc:
+        raise UpstreamError("AniList returned malformed anime data") from exc
+
+
+def _fuzzy_date_to_iso(date: dict[str, Any] | None) -> str | None:
+    if not date:
+        return None
+    year, month, day = date.get("year"), date.get("month"), date.get("day")
+    if year is None or month is None or day is None:
+        return None
+    return f"{year:04d}-{month:02d}-{day:02d}"
+
+
+def _media_to_detail(media: dict[str, Any]) -> AnimeDetail:
+    title = media.get("title") or {}
+    try:
+        return AnimeDetail(
+            **_summary_kwargs(media),
+            title_romaji=title.get("romaji"),
+            synopsis=media.get("description"),
+            duration_minutes=media.get("duration"),
+            aired_from=_fuzzy_date_to_iso(media.get("startDate")),
+            aired_to=_fuzzy_date_to_iso(media.get("endDate")),
+            trailer_image=(media.get("trailer") or {}).get("thumbnail"),
         )
     except (ValidationError, KeyError, TypeError) as exc:
         raise UpstreamError("AniList returned malformed anime data") from exc
+
+
+def _staff_to_voice_actor(staff: dict[str, Any]) -> VoiceActorSummary | None:
+    name = (staff.get("name") or {}).get("full")
+    if not name:
+        return None
+    try:
+        return VoiceActorSummary(
+            language=staff.get("languageV2") or "Unknown",
+            name=name,
+            image=(staff.get("image") or {}).get("large") or "",
+        )
+    except (ValidationError, KeyError, TypeError) as exc:
+        raise UpstreamError("AniList returned malformed character data") from exc
 
 
 def _edge_to_character(edge: dict[str, Any]) -> CharacterSummary | None:
@@ -163,12 +235,18 @@ def _edge_to_character(edge: dict[str, Any]) -> CharacterSummary | None:
     if node.get("id") is None:
         return None
 
+    voice_actors = [
+        va for va in (_staff_to_voice_actor(staff) for staff in edge.get("voiceActors") or []) if va is not None
+    ]
+
     try:
         return CharacterSummary(
             mal_id=node["id"],
             name=(node.get("name") or {}).get("full") or "Unknown",
             image=(node.get("image") or {}).get("large") or "",
             role=(edge.get("role") or "Unknown").capitalize(),
+            favorites=node.get("favourites") or 0,
+            voice_actors=voice_actors,
         )
     except (ValidationError, KeyError, TypeError) as exc:
         raise UpstreamError("AniList returned malformed character data") from exc
@@ -223,12 +301,12 @@ class AniListClient:
 
         return payload
 
-    async def get_by_id(self, mal_id: int) -> AnimeSummary:
+    async def get_by_id(self, mal_id: int) -> AnimeDetail:
         payload = await self._execute(_GET_ANIME_BY_ID_QUERY, {"idMal": mal_id})
         media = (payload.get("data") or {}).get("Media")
         if media is None:
             raise AnimeNotFoundError(mal_id)
-        return _media_to_summary(media)
+        return _media_to_detail(media)
 
     async def search(self, q: str, limit: int = 20) -> list[AnimeSummary]:
         payload = await self._execute(_SEARCH_ANIME_QUERY, {"search": q, "perPage": limit})

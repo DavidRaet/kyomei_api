@@ -1,6 +1,6 @@
 from typing import Protocol, runtime_checkable
 
-from app.anime.models import AnimeSummary, CharacterSummary
+from app.anime.models import AnimeDetail, AnimeSummary, CharacterSummary
 
 
 @runtime_checkable
@@ -8,7 +8,7 @@ class Provider(Protocol):
     """Upstream-agnostic anime data source, mirroring the frontend's animeProvider.ts abstraction.
     AniList is currently the only implementation."""
 
-    async def get_by_id(self, mal_id: int) -> AnimeSummary:
+    async def get_by_id(self, mal_id: int) -> AnimeDetail:
         """Raises AnimeNotFoundError if this provider doesn't have the anime."""
         ...
 
