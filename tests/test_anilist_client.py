@@ -80,6 +80,14 @@ async def test_get_by_id_maps_fields(client):
     assert detail.aired_to == "2013-09-29"
     assert detail.trailer_image == "https://example.com/trailer.jpg"
 
+    request_body = respx.calls.last.request.content.decode()
+    assert "description" in request_body
+    assert "duration" in request_body
+    assert "startDate" in request_body
+    assert "endDate" in request_body
+    assert "trailer" in request_body
+    assert "thumbnail" in request_body
+
 
 @respx.mock
 async def test_get_by_id_title_falls_back_to_romaji_then_native(client):
@@ -154,6 +162,10 @@ async def test_get_characters_maps_and_filters(client):
     assert [va.name for va in characters[0].voice_actors] == ["Yuki Kaji", "Bryce Papenbrook"]
     assert characters[0].voice_actors[0].language == "Japanese"
     assert characters[0].voice_actors[0].image == "https://example.com/kaji.jpg"
+
+    request_body = respx.calls.last.request.content.decode()
+    assert "favourites" in request_body
+    assert "languageV2" in request_body
 
 
 @respx.mock

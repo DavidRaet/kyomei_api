@@ -11,9 +11,9 @@ from app.anime.models import AnimeDetail, AnimeSummary, CharacterSummary, VoiceA
 from app.anime.provider import Provider
 
 __all__ = [
+    "AnimeDetail",
     "AnimeError",
     "AnimeNotFoundError",
-    "AnimeDetail",
     "AnimeSummary",
     "CharacterSummary",
     "Provider",

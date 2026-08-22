@@ -249,6 +249,28 @@ def test_search_anime_does_not_include_detail_fields():
     assert "titleRomaji" not in item
 
 
+def test_trending_anime_does_not_include_detail_fields():
+    use_provider(FakeProvider())
+    response = client.get("/v1/anime/trending")
+    assert response.status_code == 200
+    item = response.json()["data"][0]
+    assert "synopsis" not in item
+    assert "durationMinutes" not in item
+    assert "trailerImage" not in item
+    assert "titleRomaji" not in item
+
+
+def test_seasonal_anime_does_not_include_detail_fields():
+    use_provider(FakeProvider())
+    response = client.get("/v1/anime/seasonal", params={"season": "summer", "year": 2025})
+    assert response.status_code == 200
+    item = response.json()["data"][0]
+    assert "synopsis" not in item
+    assert "durationMinutes" not in item
+    assert "trailerImage" not in item
+    assert "titleRomaji" not in item
+
+
 def test_get_anime_characters_not_found():
     use_provider(FakeProvider(raise_not_found=True))
     response = client.get("/v1/anime/999999/characters")

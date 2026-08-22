@@ -1,3 +1,6 @@
+import pytest
+from pydantic import ValidationError
+
 from app.anime.models import AnimeDetail, AnimeSummary, CharacterSummary, VoiceActorSummary
 
 
@@ -43,3 +46,9 @@ def test_character_summary_requires_favorites_and_voice_actors():
     )
     assert character.favorites == 120000
     assert character.voice_actors[0].name == "Yuki Kaji"
+
+    with pytest.raises(ValidationError):
+        CharacterSummary(mal_id=1, name="x", image="", role="Main", voice_actors=[va])
+
+    with pytest.raises(ValidationError):
+        CharacterSummary(mal_id=1, name="x", image="", role="Main", favorites=0)

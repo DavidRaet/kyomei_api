@@ -210,7 +210,7 @@ def _media_to_detail(media: dict[str, Any]) -> AnimeDetail:
             aired_to=_fuzzy_date_to_iso(media.get("endDate")),
             trailer_image=(media.get("trailer") or {}).get("thumbnail"),
         )
-    except (ValidationError, KeyError, TypeError) as exc:
+    except (ValidationError, KeyError, TypeError, ValueError) as exc:
         raise UpstreamError("AniList returned malformed anime data") from exc
 
 
@@ -224,7 +224,7 @@ def _staff_to_voice_actor(staff: dict[str, Any]) -> VoiceActorSummary | None:
             name=name,
             image=(staff.get("image") or {}).get("large") or "",
         )
-    except (ValidationError, KeyError, TypeError) as exc:
+    except (ValidationError, KeyError, TypeError, AttributeError) as exc:
         raise UpstreamError("AniList returned malformed character data") from exc
 
 
@@ -248,7 +248,7 @@ def _edge_to_character(edge: dict[str, Any]) -> CharacterSummary | None:
             favorites=node.get("favourites") or 0,
             voice_actors=voice_actors,
         )
-    except (ValidationError, KeyError, TypeError) as exc:
+    except (ValidationError, KeyError, TypeError, AttributeError) as exc:
         raise UpstreamError("AniList returned malformed character data") from exc
 
 

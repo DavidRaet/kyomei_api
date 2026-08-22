@@ -56,7 +56,7 @@ Module layout — `app/cache/` is still a docstring-only stub (read the one-line
 ```
 app/
 ├── main.py             # FastAPI app creation, lifespan-managed AniListClient, CORS + rate-limit + logging middleware, router mounting, config load — wiring only. Defines GET /health inline; app/routers/anime.py is mounted for the /v1/anime/... endpoints.
-├── anime/              # domain logic: models.py (AnimeSummary/CharacterSummary), errors.py (AnimeNotFoundError/UpstreamError), provider.py (Provider Protocol: get_by_id/search/get_characters/get_trending/get_seasonal) — implemented. No separate orchestration/service.py yet; AniListClient implements Provider directly.
+├── anime/              # domain logic: models.py (AnimeSummary/AnimeDetail/CharacterSummary/VoiceActorSummary), errors.py (AnimeNotFoundError/UpstreamError), provider.py (Provider Protocol: get_by_id/search/get_characters/get_trending/get_seasonal) — implemented. No separate orchestration/service.py yet; AniListClient implements Provider directly.
 ├── anilist/            # client.py — async AniList GraphQL client (httpx), implements Provider structurally — implemented
 ├── cache/              # in-memory cache (e.g. cachetools.TTLCache); Redis is a documented future upgrade, not v1 — still a stub, not implemented
 ├── routers/            # anime.py (five /v1/anime endpoints) + schemas.py (camelCase Pydantic I/O models) + errors.py (exception handlers for 400/404/500) — implemented

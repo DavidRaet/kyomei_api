@@ -54,7 +54,7 @@ flowchart LR
     C --> D[AniList<br/>GraphQL]
 ```
 
-Request flow per endpoint today: query AniList → return a normalized `AnimeSummary`/`CharacterSummary` shape (see `CONTRACT.md`). The "check cache" / "cache the result" steps shown in the diagram are the intended v1 shape but aren't implemented yet — `app/cache/` is still a stub, so every request hits AniList directly. AniList is the sole upstream source in v1 — there is no fallback provider (see `docs/Kyomei-MVP-PRD-v2.1.md`'s Design Decisions for why Jikan was dropped rather than kept as one). Every request also passes through CORS, per-IP rate limiting, and request-logging middleware before reaching a router.
+Request flow per endpoint today: query AniList → return a normalized `AnimeSummary`/`AnimeDetail`/`CharacterSummary` shape (see `CONTRACT.md`) — the single-anime lookup (`GET /v1/anime/{malId}`) returns the richer `AnimeDetail` (extends `AnimeSummary`), while search/trending/seasonal stay `AnimeSummary`-shaped. The "check cache" / "cache the result" steps shown in the diagram are the intended v1 shape but aren't implemented yet — `app/cache/` is still a stub, so every request hits AniList directly. AniList is the sole upstream source in v1 — there is no fallback provider (see `docs/Kyomei-MVP-PRD-v2.1.md`'s Design Decisions for why Jikan was dropped rather than kept as one). Every request also passes through CORS, per-IP rate limiting, and request-logging middleware before reaching a router.
 
 ## Tech Stack
 
