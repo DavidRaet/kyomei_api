@@ -1,16 +1,34 @@
 # Kyomei API Contract
 
+<<<<<<< HEAD
+**Last updated:** 2026-08-10
+
+This document is the single source of truth for the HTTP API boundary between:
+
+- **`kyomei_api`** — Go backend service, owns recommendation logic and (eventually) any server-side user state.
+- **`kyomei_0`** — TypeScript/Vite frontend, currently calls AniList/Jikan directly for anime metadata/browsing and will call `kyomei_api` for personalized recommendations.
+=======
 **Last updated:** 2026-08-21
 
 This document is the single source of truth for the HTTP API boundary between:
 
 - **`kyomei_api`** — FastAPI backend service, owns AniList orchestration + caching now, and (eventually) recommendation logic and any server-side user state.
 - **`kyomei_0`** — TypeScript/Vite frontend, migrating anime metadata/browsing calls from direct AniList/Jikan access to `kyomei_api`, and will call it for personalized recommendations once that phase lands.
+>>>>>>> origin/main
 
 This file is copy-pasted verbatim into both repositories. Neither side needs to read the other's source code — only this contract. If an endpoint, field, or status code isn't listed here, it doesn't exist yet. Propose changes via a PR to this file in both repos before implementing.
 
 ## Scope
 
+<<<<<<< HEAD
+**In scope for `kyomei_api` (v1):**
+- Turning a user's watch history into a ranked anime recommendation list.
+- Basic service health reporting.
+
+**Explicitly out of scope for `kyomei_api` (v1):**
+- Trending/seasonal/search anime browsing — this stays client-side in `kyomei_0` (`src/api/anilist.ts`, `src/api/jikan.ts`) against AniList/Jikan directly. `kyomei_api` does not proxy or duplicate this.
+- Any persistent server-side storage of watchlists or user accounts. `kyomei_0` currently owns watchlist state locally (see `WatchlistEntry`). If/when this moves server-side, it will be added to this contract as a new versioned endpoint — see "Proposed / Not Yet Confirmed" below.
+=======
 Per `docs/fastapi-backend-setup-checklist.md`, `kyomei_api` v1 is a BFF-style orchestration layer, not a recommendation service yet — that lands in a later phase once personalization/auth work begins.
 
 **In scope for `kyomei_api` (v1):**
@@ -22,11 +40,18 @@ Per `docs/fastapi-backend-setup-checklist.md`, `kyomei_api` v1 is a BFF-style or
 - Turning a user's watch history into a ranked recommendation list, and any other personalization logic. This was previously drafted as in-scope but has not been implemented — see `POST /v1/recommendations` under "Proposed / Not Yet Confirmed" below.
 - Authentication (Auth0) — all endpoints are public/unauthenticated in v1 (see Auth section).
 - Any persistent server-side storage — PostgreSQL, Alembic migrations, watchlists, or user accounts. `kyomei_0` currently owns watchlist state locally (see `WatchlistEntry`). If/when this moves server-side, it will be added to this contract as a new versioned endpoint — see "Proposed / Not Yet Confirmed" below.
+>>>>>>> origin/main
 
 ## Conventions
 
 - Base path: all endpoints are prefixed with `/v1` except the health check.
 - All request/response bodies are `application/json`.
+<<<<<<< HEAD
+- Field names in JSON bodies are `camelCase`. Go struct fields use `json:"camelCase"` tags to match; TS interfaces need no transformation.
+- Timestamps are Unix milliseconds (`number`), matching `WatchlistEntry.addedAt` convention already used in `kyomei_0`.
+- No endpoint requires authentication in v1 (see Auth section).
+
+=======
 - Field names in JSON bodies are `camelCase`. 
 - Timestamps are Unix milliseconds (`number`), matching `WatchlistEntry.addedAt` convention already used in `kyomei_0`.
 - No endpoint requires authentication in v1 (see Auth section).
@@ -40,6 +65,7 @@ All endpoints (including `GET /health`) are rate-limited per client IP. Exceedin
 
 The limit itself is an operational detail and may be tuned without a contract change.
 
+>>>>>>> origin/main
 ## Shared Types
 
 These types are the common vocabulary for every endpoint below.
@@ -63,6 +89,12 @@ interface AnimeSummary {
   studios: string[];
 }
 
+<<<<<<< HEAD
+// Matches the frontend's WatchlistStatus (src/types/watchlist.ts).
+type WatchlistStatus = 'watching' | 'completed' | 'planning';
+
+// A single history entry the client sends to describe what the user has watched.
+=======
 // Response shape for GET /v1/anime/search.
 interface AnimeSearchResponse {
   data: AnimeSummary[];
@@ -85,6 +117,7 @@ type WatchlistStatus = 'watching' | 'completed' | 'planning';
 
 // A single history entry the client sends to describe what the user has watched.
 // Only consumed by POST /v1/recommendations, which is currently Proposed, not live — see below.
+>>>>>>> origin/main
 interface HistoryEntry {
   malId: number;
   status: WatchlistStatus;
@@ -309,17 +342,33 @@ interface RecommendationsResponse {
 { "data": [{ "malId": 20958, "titleEnglish": "Blue Lock", "titleJp": null, "image": "https://...", "score": 8.3, "episodes": 24, "year": 2022, "season": "fall", "status": "Finished Airing", "format": "TV", "genres": ["Sports"], "studios": ["8bit"], "matchScore": 0.87 }] }
 ```
 
+<<<<<<< HEAD
+## Auth
+
+None in v1. All endpoints are public/unauthenticated for the MVP. If `kyomei_api` takes on persistent per-user state (watchlist sync, saved preferences), token-based auth will be added here as a breaking contract change — do not assume it exists until this section is updated.
+
+## Proposed / Not Yet Confirmed
+
+These are plausible next endpoints based on the direction of the project, but **they are not part of the current contract**. Do not implement against these until they're moved into the "Endpoints" section above by mutual agreement.
+
+- `GET /v1/watchlist` / `PUT /v1/watchlist` — server-side sync of `WatchlistEntry[]`, if watchlist state moves off the client.
+- `GET /v1/anime/:malId` — server-side anime detail lookup, only needed if `kyomei_api` starts caching/aggregating AniList+Jikan data instead of the client doing it directly.
+=======
 ### Other proposed endpoints
 
 - `GET /v1/watchlist` / `PUT /v1/watchlist` — server-side sync of `WatchlistEntry[]`, if watchlist state moves off the client.
+>>>>>>> origin/main
 
 ## Change Log
 
 | Date | Change |
 |------|--------|
+<<<<<<< HEAD
+=======
 | 2026-08-21 | Added `GET /v1/anime/trending` and `GET /v1/anime/seasonal`, both returning `AnimeSearchResponse`. Removed the Scope note that trending/seasonal were unsupported. |
 | 2026-08-21 | `kyomei_0` began routing `getAnimeList`'s `search` mode through `kyomei_api` behind a feature flag, with AniList/Jikan kept as fallback. Documented that trending/seasonal have no `kyomei_api` endpoint yet and remain on direct AniList/Jikan fetch. |
 | 2026-08-21 | Added per-IP rate limiting middleware; documented the new `429 Too Many Requests` / `code: "rate_limited"` response shape, applicable globally across all endpoints. |
 | 2026-08-16 | Removed Jikan as fallback data source; AniList is now the sole upstream for all `/v1/anime/...` endpoints. Endpoint descriptions and error semantics ("neither AniList nor Jikan" → "AniList") updated accordingly — see `docs/Kyomei-MVP-PRD-v2.1.md`'s Design Decisions for rationale. |
 | 2026-08-13 | Reset v1 scope to match `docs/fastapi-backend-setup-checklist.md`: `GET /v1/anime/{malId}`, `GET /v1/anime/search`, `GET /v1/anime/{malId}/characters` are now in-scope (AniList-primary/Jikan-fallback orchestration + caching), with new shared types `AnimeSearchResponse`/`CharacterSummary`. `POST /v1/recommendations` moved to Proposed until personalization/auth work begins. |
+>>>>>>> origin/main
 | 2026-08-10 | Initial contract: `GET /health`, `POST /v1/recommendations`, shared `AnimeSummary`/`HistoryEntry`/`ErrorResponse` types. |
