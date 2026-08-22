@@ -342,33 +342,17 @@ interface RecommendationsResponse {
 { "data": [{ "malId": 20958, "titleEnglish": "Blue Lock", "titleJp": null, "image": "https://...", "score": 8.3, "episodes": 24, "year": 2022, "season": "fall", "status": "Finished Airing", "format": "TV", "genres": ["Sports"], "studios": ["8bit"], "matchScore": 0.87 }] }
 ```
 
-<<<<<<< HEAD
-## Auth
-
-None in v1. All endpoints are public/unauthenticated for the MVP. If `kyomei_api` takes on persistent per-user state (watchlist sync, saved preferences), token-based auth will be added here as a breaking contract change — do not assume it exists until this section is updated.
-
-## Proposed / Not Yet Confirmed
-
-These are plausible next endpoints based on the direction of the project, but **they are not part of the current contract**. Do not implement against these until they're moved into the "Endpoints" section above by mutual agreement.
-
-- `GET /v1/watchlist` / `PUT /v1/watchlist` — server-side sync of `WatchlistEntry[]`, if watchlist state moves off the client.
-- `GET /v1/anime/:malId` — server-side anime detail lookup, only needed if `kyomei_api` starts caching/aggregating AniList+Jikan data instead of the client doing it directly.
-=======
 ### Other proposed endpoints
 
 - `GET /v1/watchlist` / `PUT /v1/watchlist` — server-side sync of `WatchlistEntry[]`, if watchlist state moves off the client.
->>>>>>> origin/main
 
 ## Change Log
 
 | Date | Change |
 |------|--------|
-<<<<<<< HEAD
-=======
 | 2026-08-21 | Added `GET /v1/anime/trending` and `GET /v1/anime/seasonal`, both returning `AnimeSearchResponse`. Removed the Scope note that trending/seasonal were unsupported. |
 | 2026-08-21 | `kyomei_0` began routing `getAnimeList`'s `search` mode through `kyomei_api` behind a feature flag, with AniList/Jikan kept as fallback. Documented that trending/seasonal have no `kyomei_api` endpoint yet and remain on direct AniList/Jikan fetch. |
 | 2026-08-21 | Added per-IP rate limiting middleware; documented the new `429 Too Many Requests` / `code: "rate_limited"` response shape, applicable globally across all endpoints. |
 | 2026-08-16 | Removed Jikan as fallback data source; AniList is now the sole upstream for all `/v1/anime/...` endpoints. Endpoint descriptions and error semantics ("neither AniList nor Jikan" → "AniList") updated accordingly — see `docs/Kyomei-MVP-PRD-v2.1.md`'s Design Decisions for rationale. |
 | 2026-08-13 | Reset v1 scope to match `docs/fastapi-backend-setup-checklist.md`: `GET /v1/anime/{malId}`, `GET /v1/anime/search`, `GET /v1/anime/{malId}/characters` are now in-scope (AniList-primary/Jikan-fallback orchestration + caching), with new shared types `AnimeSearchResponse`/`CharacterSummary`. `POST /v1/recommendations` moved to Proposed until personalization/auth work begins. |
->>>>>>> origin/main
 | 2026-08-10 | Initial contract: `GET /health`, `POST /v1/recommendations`, shared `AnimeSummary`/`HistoryEntry`/`ErrorResponse` types. |
