@@ -4,7 +4,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, Path, Query, Request
 
 from app.anime.provider import Provider
-from app.routers.schemas import AnimeSearchOut, AnimeSummaryOut, CharactersOut, CharacterSummaryOut
+from app.routers.schemas import AnimeDetailOut, AnimeSearchOut, AnimeSummaryOut, CharactersOut, CharacterSummaryOut
 
 router = APIRouter(prefix="/v1/anime", tags=["anime"])
 
@@ -64,13 +64,13 @@ async def get_seasonal_anime(
     return AnimeSearchOut(data=[AnimeSummaryOut.model_validate(r, from_attributes=True) for r in results])
 
 
-@router.get("/{mal_id}", response_model=AnimeSummaryOut)
+@router.get("/{mal_id}", response_model=AnimeDetailOut)
 async def get_anime(
     mal_id: int = Path(..., gt=0),
     provider: Provider = Depends(get_provider),
-) -> AnimeSummaryOut:
-    summary = await provider.get_by_id(mal_id)
-    return AnimeSummaryOut.model_validate(summary, from_attributes=True)
+) -> AnimeDetailOut:
+    detail = await provider.get_by_id(mal_id)
+    return AnimeDetailOut.model_validate(detail, from_attributes=True)
 
 
 @router.get("/{mal_id}/characters", response_model=CharactersOut)

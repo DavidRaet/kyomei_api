@@ -7,14 +7,16 @@ orchestrator consumes.
 """
 
 from app.anime.errors import AnimeError, AnimeNotFoundError, UpstreamError
-from app.anime.models import AnimeSummary, CharacterSummary
+from app.anime.models import AnimeDetail, AnimeSummary, CharacterSummary, VoiceActorSummary
 from app.anime.provider import Provider
 
 __all__ = [
+    "AnimeDetail",
     "AnimeError",
     "AnimeNotFoundError",
     "AnimeSummary",
     "CharacterSummary",
     "Provider",
     "UpstreamError",
+    "VoiceActorSummary",
 ]
