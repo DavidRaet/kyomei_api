@@ -1,6 +1,6 @@
 # Kyomei API Contract
 
-**Last updated:** 2026-08-21
+**Last updated:** 2026-08-22
 
 This document is the single source of truth for the HTTP API boundary between:
 
@@ -17,6 +17,7 @@ Per `docs/fastapi-backend-setup-checklist.md`, `kyomei_api` v1 is a BFF-style or
 - Anime lookup, search, character listing, trending, and seasonal listings, orchestrated server-side via AniList (GraphQL) — the sole upstream data source; there is no fallback provider (see `docs/Kyomei-MVP-PRD-v2.1.md`'s Design Decisions for why Jikan was dropped rather than kept as a fallback).
 - Shared caching of the above (in-memory for v1; Redis is a documented future upgrade, not required now).
 - Basic service health reporting.
+- `AnimeDetail.synopsis` is passed through verbatim from AniList's `description` field, which can contain raw HTML (e.g. `<br>`, `<i>`). `kyomei_api` does not sanitize it — `kyomei_0` must sanitize before any `dangerouslySetInnerHTML`/`innerHTML`-style render, since this string is untrusted third-party content.
 
 **Explicitly out of scope for `kyomei_api` (v1):**
 - Turning a user's watch history into a ranked recommendation list, and any other personalization logic. This was previously drafted as in-scope but has not been implemented — see `POST /v1/recommendations` under "Proposed / Not Yet Confirmed" below.
@@ -63,20 +64,38 @@ interface AnimeSummary {
   studios: string[];
 }
 
+// Detail-page shape for GET /v1/anime/{malId}. List endpoints keep AnimeSummary.
+// Extra fields match what kyomei_0's AnimeDetailPage currently renders.
+interface AnimeDetail extends AnimeSummary {
+  titleRomaji?: string;           // UI heading is titleEnglish || titleRomaji
+  synopsis: string | null;
+  durationMinutes: number | null; // episode length in minutes; frontend formats the display string
+  airedFrom: string | null;       // YYYY-MM-DD
+  airedTo: string | null;
+  trailerImage: string | null;    // trailer thumbnail used as the detail banner
+}
+
 // Response shape for GET /v1/anime/search.
 interface AnimeSearchResponse {
   data: AnimeSummary[];
   total?: number; // optional, only if the upstream source reports a total count
 }
 
+// A voice actor on a CharacterSummary. kyomei_0 shows the Japanese VA when present.
+interface VoiceActorSummary {
+  language: string;
+  name: string;
+  image: string;
+}
+
 // A single cast member returned by GET /v1/anime/{malId}/characters.
-// Field shapes are provisional — kyomei_0's character rendering needs weren't
-// available to cross-check from this repo; adjust if they don't match once wired up.
 interface CharacterSummary {
   malId: number;
   name: string;
   image: string;
   role: string; // e.g. "Main", "Supporting"
+  favorites: number; // used to sort after role (Main first, then favorites desc)
+  voiceActors: VoiceActorSummary[];
 }
 
 // Matches the frontend's WatchlistStatus (src/types/watchlist.ts).
@@ -127,7 +146,7 @@ Path param: `malId` (positive integer). No query params, no body.
 
 **Response — success**
 
-- `200 OK` — body is `AnimeSummary`.
+- `200 OK` — body is `AnimeDetail`.
 
 **Response — error**
 
@@ -141,7 +160,7 @@ Path param: `malId` (positive integer). No query params, no body.
 // GET /v1/anime/16498
 
 // Response 200
-{ "malId": 16498, "titleEnglish": "Attack on Titan", "titleJp": "進撃の巨人", "image": "https://...", "score": 8.5, "episodes": 25, "year": 2013, "season": "spring", "status": "Finished Airing", "format": "TV", "genres": ["Action", "Drama"], "studios": ["Wit Studio"] }
+{ "malId": 16498, "titleEnglish": "Attack on Titan", "titleJp": "進撃の巨人", "titleRomaji": "Shingeki no Kyojin", "image": "https://...", "score": 8.5, "episodes": 25, "year": 2013, "season": "spring", "status": "Finished Airing", "format": "TV", "genres": ["Action", "Drama"], "studios": ["Wit Studio"], "synopsis": "Centuries ago, mankind was slaughtered...", "durationMinutes": 24, "airedFrom": "2013-04-07", "airedTo": "2013-09-29", "trailerImage": "https://..." }
 ```
 
 ### `GET /v1/anime/search`
@@ -252,7 +271,7 @@ Path param: `malId` (positive integer). No query params, no body.
 // GET /v1/anime/16498/characters
 
 // Response 200
-{ "data": [{ "malId": 40882, "name": "Eren Yeager", "image": "https://...", "role": "Main" }] }
+{ "data": [{ "malId": 40882, "name": "Eren Yeager", "image": "https://...", "role": "Main", "favorites": 120000, "voiceActors": [{ "language": "Japanese", "name": "Yuki Kaji", "image": "https://..." }] }] }
 ```
 
 ## Auth
@@ -317,8 +336,9 @@ interface RecommendationsResponse {
 
 | Date | Change |
 |------|--------|
+| 2026-08-22 | `GET /v1/anime/{malId}` now returns `AnimeDetail` (extends `AnimeSummary` with `titleRomaji`, `synopsis`, `durationMinutes`, `airedFrom`, `airedTo`, `trailerImage`) so it matches `kyomei_0`'s detail page. `CharacterSummary` gained `favorites` and `voiceActors` (via `VoiceActorSummary`); the previous provisional-shape note is removed. List/search/trending/seasonal endpoints still return `AnimeSummary`. |
 | 2026-08-21 | Added `GET /v1/anime/trending` and `GET /v1/anime/seasonal`, both returning `AnimeSearchResponse`. Removed the Scope note that trending/seasonal were unsupported. |
-| 2026-08-21 | `kyomei_0` began routing `getAnimeList`'s `search` mode through `kyomei_api` behind a feature flag, with AniList/Jikan kept as fallback. Documented that trending/seasonal have no `kyomei_api` endpoint yet and remain on direct AniList/Jikan fetch. |
+| 2026-08-21 | `kyomei_0` now routes all three `getAnimeList` modes (`search`, `trending`, `seasonal`) through `kyomei_api` behind a feature flag, with AniList/Jikan kept as fallback. |
 | 2026-08-21 | Added per-IP rate limiting middleware; documented the new `429 Too Many Requests` / `code: "rate_limited"` response shape, applicable globally across all endpoints. |
 | 2026-08-16 | Removed Jikan as fallback data source; AniList is now the sole upstream for all `/v1/anime/...` endpoints. Endpoint descriptions and error semantics ("neither AniList nor Jikan" → "AniList") updated accordingly — see `docs/Kyomei-MVP-PRD-v2.1.md`'s Design Decisions for rationale. |
 | 2026-08-13 | Reset v1 scope to match `docs/fastapi-backend-setup-checklist.md`: `GET /v1/anime/{malId}`, `GET /v1/anime/search`, `GET /v1/anime/{malId}/characters` are now in-scope (AniList-primary/Jikan-fallback orchestration + caching), with new shared types `AnimeSearchResponse`/`CharacterSummary`. `POST /v1/recommendations` moved to Proposed until personalization/auth work begins. |
