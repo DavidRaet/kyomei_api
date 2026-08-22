@@ -113,7 +113,7 @@ interface HistoryEntry {
 // Uniform error body for any non-2xx response from any endpoint.
 interface ErrorResponse {
   error: {
-    code: string;    // machine-readable, e.g. "invalid_request", "not_found", "internal_error"
+    code: string;    // machine-readable, e.g. "invalid_request", "not_found", "internal_error", "upstream_unavailable"
     message: string; // human-readable, safe to display in logs or minimal UI
   };
 }
@@ -136,6 +136,8 @@ interface HealthResponse {
 - `200 OK` — service is up, body as above.
 - `503 Service Unavailable` — service is degraded/not ready, body as `ErrorResponse` with `code: "unavailable"`.
 
+Note: `"unavailable"` here describes this service's own liveness/readiness state. It's distinct from `"upstream_unavailable"` (used by the `/v1/anime/...` endpoints below), which describes AniList itself failing while this service is otherwise healthy — the two codes are intentionally not unified.
+
 ### `GET /v1/anime/{malId}`
 
 Looks up a single anime by MyAnimeList id via AniList; result is cached.
@@ -153,6 +155,7 @@ Path param: `malId` (positive integer). No query params, no body.
 - `400 Bad Request` — `malId` isn't a positive integer. Body: `ErrorResponse` with `code: "invalid_request"`.
 - `404 Not Found` — AniList has no match for `malId`. Body: `ErrorResponse` with `code: "not_found"`.
 - `500 Internal Server Error` — the AniList request failed unexpectedly. Body: `ErrorResponse` with `code: "internal_error"`.
+- `503 Service Unavailable` — AniList itself returned an error response or failed to return data (e.g. an AniList-side outage). Body: `ErrorResponse` with `code: "upstream_unavailable"`.
 
 **Example**
 
@@ -181,6 +184,7 @@ Query params:
 
 - `400 Bad Request` — `q` missing/empty, or `limit` out of range. Body: `ErrorResponse` with `code: "invalid_request"`.
 - `500 Internal Server Error` — the AniList request failed unexpectedly. Body: `ErrorResponse` with `code: "internal_error"`.
+- `503 Service Unavailable` — AniList itself returned an error response or failed to return data (e.g. an AniList-side outage). Body: `ErrorResponse` with `code: "upstream_unavailable"`.
 
 **Example**
 
@@ -208,6 +212,7 @@ Query params:
 
 - `400 Bad Request` — `limit` out of range. Body: `ErrorResponse` with `code: "invalid_request"`.
 - `500 Internal Server Error` — the AniList request failed unexpectedly. Body: `ErrorResponse` with `code: "internal_error"`.
+- `503 Service Unavailable` — AniList itself returned an error response or failed to return data (e.g. an AniList-side outage). Body: `ErrorResponse` with `code: "upstream_unavailable"`.
 
 **Example**
 
@@ -237,6 +242,7 @@ Query params:
 
 - `400 Bad Request` — `season` isn't one of the four valid values, or `limit` out of range. Body: `ErrorResponse` with `code: "invalid_request"`.
 - `500 Internal Server Error` — the AniList request failed unexpectedly. Body: `ErrorResponse` with `code: "internal_error"`.
+- `503 Service Unavailable` — AniList itself returned an error response or failed to return data (e.g. an AniList-side outage). Body: `ErrorResponse` with `code: "upstream_unavailable"`.
 
 **Example**
 
@@ -264,6 +270,7 @@ Path param: `malId` (positive integer). No query params, no body.
 - `400 Bad Request` — `malId` isn't a positive integer. Body: `ErrorResponse` with `code: "invalid_request"`.
 - `404 Not Found` — AniList has no match for `malId`. Body: `ErrorResponse` with `code: "not_found"`.
 - `500 Internal Server Error` — the AniList request failed unexpectedly. Body: `ErrorResponse` with `code: "internal_error"`.
+- `503 Service Unavailable` — AniList itself returned an error response or failed to return data (e.g. an AniList-side outage). Body: `ErrorResponse` with `code: "upstream_unavailable"`.
 
 **Example**
 
@@ -336,6 +343,7 @@ interface RecommendationsResponse {
 
 | Date | Change |
 |------|--------|
+| 2026-08-22 | Added `upstream_unavailable` error code (`503`) for all five `/v1/anime/...` endpoints, used when AniList itself returns a non-2xx GraphQL response or a 200 response with no `data`. Timeouts and connection failures are unaffected and still map to `500`/`internal_error`. |
 | 2026-08-22 | `GET /v1/anime/{malId}` now returns `AnimeDetail` (extends `AnimeSummary` with `titleRomaji`, `synopsis`, `durationMinutes`, `airedFrom`, `airedTo`, `trailerImage`) so it matches `kyomei_0`'s detail page. `CharacterSummary` gained `favorites` and `voiceActors` (via `VoiceActorSummary`); the previous provisional-shape note is removed. List/search/trending/seasonal endpoints still return `AnimeSummary`. |
 | 2026-08-21 | Added `GET /v1/anime/trending` and `GET /v1/anime/seasonal`, both returning `AnimeSearchResponse`. Removed the Scope note that trending/seasonal were unsupported. |
 | 2026-08-21 | `kyomei_0` now routes all three `getAnimeList` modes (`search`, `trending`, `seasonal`) through `kyomei_api` behind a feature flag, with AniList/Jikan kept as fallback. |

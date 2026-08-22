@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from app.anime.errors import AnimeNotFoundError, UpstreamError
+from app.anime.errors import AnimeNotFoundError, UpstreamError, UpstreamUnavailableError
 from app.anime.models import AnimeDetail, AnimeSummary, CharacterSummary, VoiceActorSummary
 from app.main import app
 from app.routers.anime import get_provider
@@ -58,28 +58,43 @@ CHARACTER = CharacterSummary(
 
 
 class FakeProvider:
-    def __init__(self, *, raise_not_found: bool = False, raise_upstream: bool = False):
+    def __init__(
+        self,
+        *,
+        raise_not_found: bool = False,
+        raise_upstream: bool = False,
+        raise_upstream_unavailable: bool = False,
+    ):
         self.raise_not_found = raise_not_found
         self.raise_upstream = raise_upstream
+        self.raise_upstream_unavailable = raise_upstream_unavailable
 
     async def get_by_id(self, mal_id: int) -> AnimeDetail:
         if self.raise_not_found:
             raise AnimeNotFoundError(mal_id)
+        if self.raise_upstream_unavailable:
+            raise UpstreamUnavailableError("boom")
         if self.raise_upstream:
             raise UpstreamError("boom")
         return DETAIL
 
     async def search(self, q: str, limit: int = 20) -> list[AnimeSummary]:
+        if self.raise_upstream_unavailable:
+            raise UpstreamUnavailableError("boom")
         if self.raise_upstream:
             raise UpstreamError("boom")
         return [SUMMARY]
 
     async def get_trending(self, limit: int = 20) -> list[AnimeSummary]:
+        if self.raise_upstream_unavailable:
+            raise UpstreamUnavailableError("boom")
         if self.raise_upstream:
             raise UpstreamError("boom")
         return [SUMMARY]
 
     async def get_seasonal(self, year: int, season: str, limit: int = 20) -> list[AnimeSummary]:
+        if self.raise_upstream_unavailable:
+            raise UpstreamUnavailableError("boom")
         if self.raise_upstream:
             raise UpstreamError("boom")
         return [SUMMARY]
@@ -87,6 +102,8 @@ class FakeProvider:
     async def get_characters(self, mal_id: int) -> list[CharacterSummary]:
         if self.raise_not_found:
             raise AnimeNotFoundError(mal_id)
+        if self.raise_upstream_unavailable:
+            raise UpstreamUnavailableError("boom")
         if self.raise_upstream:
             raise UpstreamError("boom")
         return [CHARACTER]
@@ -143,6 +160,13 @@ def test_get_anime_upstream_error():
     response = client.get("/v1/anime/16498")
     assert response.status_code == 500
     assert response.json()["error"]["code"] == "internal_error"
+
+
+def test_get_anime_upstream_unavailable_error():
+    use_provider(FakeProvider(raise_upstream_unavailable=True))
+    response = client.get("/v1/anime/16498")
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "upstream_unavailable"
 
 
 def test_search_anime_success():

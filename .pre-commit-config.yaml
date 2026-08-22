@@ -19,3 +19,10 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
+      - id: docker-build
+        name: docker build
+        entry: docker build -t kyomei_api:precommit .
+        language: system
+        pass_filenames: false
+        always_run: true
+        require_serial: true

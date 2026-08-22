@@ -12,3 +12,10 @@ class AnimeNotFoundError(AnimeError):
 
 class UpstreamError(AnimeError):
     """Raised when the upstream AniList provider fails or times out."""
+
+
+class UpstreamUnavailableError(UpstreamError):
+    """Raised when AniList itself reports a GraphQL-level failure — a non-2xx
+    HTTP status, or a 200 response with no ``data`` key — as opposed to a
+    network failure/timeout or a data-mapping bug on our side.
+    """

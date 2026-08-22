@@ -15,3 +15,6 @@ hooks-install:
 
 hooks-run:
     uv run pre-commit run --all-files
+
+docker:
+    docker build -t kyomei_api .

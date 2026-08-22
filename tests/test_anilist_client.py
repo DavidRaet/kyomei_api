@@ -3,7 +3,7 @@ import pytest
 import respx
 
 from app.anilist.client import AniListClient
-from app.anime.errors import AnimeNotFoundError, UpstreamError
+from app.anime.errors import AnimeNotFoundError, UpstreamError, UpstreamUnavailableError
 
 ENDPOINT = "https://graphql.anilist.co"
 
@@ -230,7 +230,7 @@ async def test_execute_malformed_json_raises_upstream_error(client):
 async def test_execute_http_500_raises_upstream_error(client):
     respx.post(ENDPOINT).respond(json={"errors": ["boom"]}, status_code=500)
 
-    with pytest.raises(UpstreamError):
+    with pytest.raises(UpstreamUnavailableError):
         await client.get_by_id(16498)
 
 
@@ -238,8 +238,30 @@ async def test_execute_http_500_raises_upstream_error(client):
 async def test_execute_http_400_raises_upstream_error(client):
     respx.post(ENDPOINT).respond(json={"errors": ["bad request"]}, status_code=400)
 
-    with pytest.raises(UpstreamError):
+    with pytest.raises(UpstreamUnavailableError):
         await client.get_by_id(16498)
+
+
+@respx.mock
+async def test_execute_http_403_raises_upstream_unavailable_error(client):
+    respx.post(ENDPOINT).respond(
+        json={
+            "errors": [
+                {
+                    "message": "The AniList API has been temporarily disabled due to severe stability issues.",
+                    "status": 403,
+                    "locations": [{"line": 1, "column": 1}],
+                }
+            ]
+        },
+        status_code=403,
+    )
+
+    with pytest.raises(UpstreamUnavailableError) as exc_info:
+        await client.get_by_id(16498)
+
+    assert isinstance(exc_info.value, UpstreamError)
+    assert "severe stability issues" not in str(exc_info.value)
 
 
 @respx.mock
@@ -254,7 +276,7 @@ async def test_execute_http_404_is_not_treated_as_upstream_error(client):
 async def test_execute_missing_data_key_raises_upstream_error(client):
     respx.post(ENDPOINT).respond(json={"errors": ["field error"]}, status_code=200)
 
-    with pytest.raises(UpstreamError):
+    with pytest.raises(UpstreamUnavailableError):
         await client.get_by_id(16498)
 
 
