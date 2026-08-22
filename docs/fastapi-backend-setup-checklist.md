@@ -63,14 +63,14 @@ This is a skeleton — check items off as completed, and expand any section into
 - [x] `.env.example` with required vars (e.g. `PORT`, `ANILIST_ENDPOINT`, `CACHE_TTL_SECONDS`)
 - [x] Verify `uvicorn app.main:app --reload` starts server locally on expected port
 - [x] Manually test each endpoint via FastAPI's auto-generated Swagger UI (`/docs`) or `curl`/Postman
-- [ ] Point frontend's `animeProvider.ts` at `http://localhost:<port>/api/...` behind a feature flag or env var, without removing direct-fetch fallback yet
+- [X] Point frontend's `animeProvider.ts` at `http://localhost:<port>/api/...` behind a feature flag or env var, without removing direct-fetch fallback yet
 
 ## 5. Testing
 
-- [ ] Unit tests for the `app/anilist/` client (mock HTTP responses with `pytest-httpx` or `respx`)
-- [ ] Unit tests for orchestration logic in `app/anime/service.py` (simulate AniList failure → confirm it surfaces as an `UpstreamError`/5xx, since there is no fallback source)
-- [ ] Basic integration test hitting a running local server for one endpoint (`httpx.AsyncClient` or FastAPI `TestClient`)
-- [ ] Add `pytest` to a pre-commit hook or CI step
+- [X] Unit tests for the `app/anilist/` client (mock HTTP responses with `pytest-httpx` or `respx`)
+- [X] Unit tests for orchestration logic in `app/anime/service.py` (simulate AniList failure → confirm it surfaces as an `UpstreamError`/5xx, since there is no fallback source)
+- [X] Basic integration test hitting a running local server for one endpoint (`httpx.AsyncClient`)
+- [ ] Add `pytest` to a pre-commit hook 
 
 ## 6. Containerization
 
