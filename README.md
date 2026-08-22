@@ -47,19 +47,11 @@ This repository is **a working BFF for the three v1 anime endpoints — not yet 
 
 `kyomei_api` is a BFF, not the recommendation engine described in the PRD — its job in this phase is orchestration and caching only. It mirrors, server-side, the fallback pattern the frontend already implements client-side (`kyomei_0`'s `src/api/animeProvider.ts` → `anilist.ts` primary  / `cache.ts`).
 
-```
-                 ┌────────────┐
-   kyomei_0  ──▶ │ kyomei_api │
-  (frontend)     │   (BFF)    │
-                 └─────┬──────┘
-                       │
-              ┌────────┴────────┐
-              │  in-memory      │
-              │  TTL cache      │
-              └────────┬────────┘
-                       │
-                       ▼
-                query AniList (GraphQL)
+```mermaid
+flowchart LR
+    A[kyomei_0<br/>frontend] --> B[kyomei_api<br/>BFF]
+    B --> C[in-memory<br/>TTL cache]
+    C --> D[AniList<br/>GraphQL]
 ```
 
 Request flow per endpoint today: query AniList → return a normalized `AnimeSummary`/`CharacterSummary` shape (see `CONTRACT.md`). The "check cache" / "cache the result" steps shown in the diagram are the intended v1 shape but aren't implemented yet — `app/cache/` is still a stub, so every request hits AniList directly. AniList is the sole upstream source in v1 — there is no fallback provider (see `docs/Kyomei-MVP-PRD-v2.1.md`'s Design Decisions for why Jikan was dropped rather than kept as one).
