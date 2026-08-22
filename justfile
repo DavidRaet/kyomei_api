@@ -9,3 +9,9 @@ lint:
 
 format:
     uv run ruff format
+
+hooks-install:
+    uv run pre-commit install
+
+hooks-run:
+    uv run pre-commit run --all-files

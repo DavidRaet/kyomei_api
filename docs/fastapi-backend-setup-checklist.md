@@ -70,7 +70,7 @@ This is a skeleton — check items off as completed, and expand any section into
 - [X] Unit tests for the `app/anilist/` client (mock HTTP responses with `pytest-httpx` or `respx`)
 - [X] Unit tests for orchestration logic in `app/anime/service.py` (simulate AniList failure → confirm it surfaces as an `UpstreamError`/5xx, since there is no fallback source)
 - [X] Basic integration test hitting a running local server for one endpoint (`httpx.AsyncClient`)
-- [ ] Add `pytest` to a pre-commit hook 
+- [X] Add `pytest` to a pre-commit hook (`.pre-commit-config.yaml`; also runs `ruff check` / `ruff format --check`, mirroring CI)
 
 ## 6. Containerization
 
