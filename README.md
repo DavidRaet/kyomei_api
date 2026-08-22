@@ -23,22 +23,22 @@
 
 ## Current Status
 
-This repository is **a working BFF for the three v1 anime endpoints — not yet a completed recommendation engine, and not yet caching anything.** Concretely, per `docs/fastapi-backend-setup-checklist.md`:
+This repository is **a working BFF for all five v1 anime endpoints, with CORS, per-IP rate limiting, and request logging in place — not yet a completed recommendation engine, and not yet caching anything.** Concretely, per `docs/fastapi-backend-setup-checklist.md`:
 
 **Done:**
-- Repo/project structure, `uv`-based dependency management, `ruff` lint/format config, `justfile` commands
-- `GET /health`, plus all three contract endpoints — `GET /v1/anime/{malId}`, `GET /v1/anime/search`, `GET /v1/anime/{malId}/characters` — implemented against AniList's GraphQL API, with camelCase response schemas and contract-matching error handling (400/404/500)
+- Repo/project structure, `uv`-based dependency management, `ruff` lint/format config, `justfile` commands, a `pre-commit` hook (`ruff check`, `ruff format --check`, `pytest`)
+- `GET /health`, plus five contract endpoints — `GET /v1/anime/{malId}`, `GET /v1/anime/search`, `GET /v1/anime/trending`, `GET /v1/anime/seasonal`, `GET /v1/anime/{malId}/characters` — implemented against AniList's GraphQL API, with camelCase response schemas and contract-matching error handling (400/404/500)
 - `app/anime/` (models, errors, `Provider` protocol) and `app/anilist/client.py` (the AniList GraphQL client) — domain logic and upstream client
-- `app/config.py` wired up via `pydantic-settings` and loaded in `app/main.py` (though only `ANILIST_ENDPOINT` is actually read so far — see below)
-- Router-level tests (`tests/test_routers_anime.py`) covering success, not-found, invalid-input, and upstream-error paths for all three endpoints, using a fake `Provider`
+- CORS middleware scoped to configured origins, per-IP rate limiting (`slowapi`, 429s on breach) and structured request logging — all wired in `app/main.py`
+- `app/config.py` wired up via `pydantic-settings` and loaded in `app/main.py` — `ANILIST_ENDPOINT`, `CORS_ALLOWED_ORIGINS`, and the rate-limit settings are read; `PORT` and `CACHE_TTL_SECONDS` still aren't (see below)
+- Tests: router-level (`tests/test_routers_anime.py`, a fake `Provider`), AniList client unit tests against mocked HTTP responses (`tests/test_anilist_client.py`, `respx`), an integration test against a running server (`tests/test_integration_health.py`), plus CORS/rate-limit/logging tests
 - `Dockerfile` (multi-layer `uv sync` build) verified locally
 - CI (`.github/workflows/ci.yml`): lint + test + Docker build on every PR
 - Deployed to Railway with environment variables mirrored from `.env.example`
 
 **Not yet done:**
 - **Caching** — `app/cache/` is still an empty stub module. Every request currently hits AniList directly; `CACHE_TTL_SECONDS` exists as a setting but nothing reads it yet, so despite `CONTRACT.md` describing these responses as cached, none of them are
-- CORS middleware and request logging/rate limiting
-- Unit tests for `app/anilist/client.py` against mocked HTTP responses; an integration test against a running server; local dev verification against a running frontend; frontend cutover
+- Frontend cutover — `kyomei_0` still needs to drop its client-side AniList/Jikan fallback once this backend is trusted
 - Authentication, PostgreSQL, and recommendation logic — explicitly out of scope for this phase (see [Roadmap](#roadmap))
 
 <!-- HUMAN INPUT: Add narrative framing of where the project stands and what "done" means for this phase, if you want more than the checklist summary above. -->
@@ -54,7 +54,7 @@ flowchart LR
     C --> D[AniList<br/>GraphQL]
 ```
 
-Request flow per endpoint today: query AniList → return a normalized `AnimeSummary`/`CharacterSummary` shape (see `CONTRACT.md`). The "check cache" / "cache the result" steps shown in the diagram are the intended v1 shape but aren't implemented yet — `app/cache/` is still a stub, so every request hits AniList directly. AniList is the sole upstream source in v1 — there is no fallback provider (see `docs/Kyomei-MVP-PRD-v2.1.md`'s Design Decisions for why Jikan was dropped rather than kept as one).
+Request flow per endpoint today: query AniList → return a normalized `AnimeSummary`/`CharacterSummary` shape (see `CONTRACT.md`). The "check cache" / "cache the result" steps shown in the diagram are the intended v1 shape but aren't implemented yet — `app/cache/` is still a stub, so every request hits AniList directly. AniList is the sole upstream source in v1 — there is no fallback provider (see `docs/Kyomei-MVP-PRD-v2.1.md`'s Design Decisions for why Jikan was dropped rather than kept as one). Every request also passes through CORS, per-IP rate limiting, and request-logging middleware before reaching a router.
 
 ## Tech Stack
 
@@ -64,10 +64,12 @@ Request flow per endpoint today: query AniList → return a normalized `AnimeSum
 | Package manager | [`uv`](https://docs.astral.sh/uv/) | `pyproject.toml`, `uv.lock` |
 | Web framework | FastAPI (≥0.141) | `pyproject.toml` |
 | ASGI server | Uvicorn (`[standard]`, ≥0.52) | `pyproject.toml` |
-| Outbound HTTP client | `httpx` (≥0.28) — planned for the AniList client | `pyproject.toml` |
-| Config loading | `pydantic-settings` (≥2.15) — not yet wired up | `pyproject.toml`, `app/config.py` |
+| Outbound HTTP client | `httpx` (≥0.28) — used by the AniList client and integration tests | `pyproject.toml` |
+| Config loading | `pydantic-settings` (≥2.15) | `pyproject.toml`, `app/config.py` |
+| Rate limiting | `slowapi` (≥0.1.9) — per-IP, in `app/rate_limit.py` | `pyproject.toml`, `app/rate_limit.py` |
 | Lint/format | `ruff` (≥0.16) | `pyproject.toml`, `justfile` |
-| Testing | `pytest` (≥8.0) | `pyproject.toml`, `tests/` |
+| Testing | `pytest` (≥8.0), `respx` (mocked HTTP for AniList client tests) | `pyproject.toml`, `tests/` |
+| Pre-commit | `pre-commit` (≥3.8) — runs `ruff check`, `ruff format --check`, `pytest` | `.pre-commit-config.yaml`, `justfile` |
 | Containerization | Docker, `ghcr.io/astral-sh/uv:python3.14-bookworm-slim` base image | `Dockerfile` |
 | CI | GitHub Actions | `.github/workflows/ci.yml` |
 | Hosting | Railway | `docs/fastapi-backend-setup-checklist.md` §8 |
@@ -77,14 +79,22 @@ Request flow per endpoint today: query AniList → return a normalized `AnimeSum
 ```
 kyomei_api/
 ├── app/
-│   ├── main.py       # FastAPI app creation, lifespan-managed AniListClient, GET /health, mounts app/routers/anime.py — wiring only
-│   ├── anime/        # domain logic: models.py, errors.py, provider.py (Provider Protocol) — implemented; no separate orchestration/service.py yet
-│   ├── anilist/      # client.py — async AniList GraphQL client (httpx) — implemented
-│   ├── cache/        # stub — in-memory cache (e.g. cachetools.TTLCache) not yet implemented; Redis is a documented future upgrade
-│   ├── routers/      # anime.py, schemas.py, errors.py — the three /v1/anime endpoints, camelCase Pydantic models, exception handlers — implemented
-│   └── config.py     # pydantic-settings env/config loading — implemented; only ANILIST_ENDPOINT is actually read so far
+│   ├── main.py             # FastAPI app creation, lifespan-managed AniListClient, CORS + rate-limit + logging middleware, GET /health, mounts app/routers/anime.py — wiring only
+│   ├── anime/              # domain logic: models.py, errors.py, provider.py (Provider Protocol) — implemented; no separate orchestration/service.py yet
+│   ├── anilist/            # client.py — async AniList GraphQL client (httpx) — implemented
+│   ├── cache/              # stub — in-memory cache (e.g. cachetools.TTLCache) not yet implemented; Redis is a documented future upgrade
+│   ├── routers/            # anime.py, schemas.py, errors.py — five /v1/anime endpoints, camelCase Pydantic models, exception handlers — implemented
+│   ├── rate_limit.py       # slowapi Limiter + 429 handler — implemented
+│   ├── logging_config.py   # request logging middleware — implemented
+│   └── config.py           # pydantic-settings env/config loading — implemented; PORT and CACHE_TTL_SECONDS aren't actually read yet
 ├── tests/
-│   └── test_health.py
+│   ├── test_health.py
+│   ├── test_routers_anime.py
+│   ├── test_anilist_client.py
+│   ├── test_integration_health.py
+│   ├── test_cors.py
+│   ├── test_rate_limit.py
+│   └── test_logging.py
 ├── docs/
 │   ├── Kyomei-MVP-PRD-v2.1.md
 │   ├── fastapi-backend-setup-checklist.md
@@ -116,7 +126,7 @@ The server starts on `http://localhost:8000` (or `$PORT` if set). Verify it's up
 curl http://localhost:8000/health        # {"status": "ok"}
 ```
 
-Swagger UI is available at `http://localhost:8000/docs` (auto-generated by FastAPI; documents `/health` and the three `/v1/anime/...` routes).
+Swagger UI is available at `http://localhost:8000/docs` (auto-generated by FastAPI; documents `/health` and the five `/v1/anime/...` routes).
 
 **Run with Docker instead:**
 
@@ -131,13 +141,15 @@ The authoritative contract is [`CONTRACT.md`](./CONTRACT.md) — it is copy-past
 
 | Method | Path | Status |
 |---|---|---|
-| `GET` | `/health` | **Implemented** |
+| `GET` | `/health` | **Implemented** (rate-limited like every other endpoint) |
 | `GET` | `/v1/anime/{malId}` | **Implemented** (not yet cached — see [Current Status](#current-status)) |
 | `GET` | `/v1/anime/search` | **Implemented** (not yet cached — see [Current Status](#current-status)) |
+| `GET` | `/v1/anime/trending` | **Implemented** (not yet cached — see [Current Status](#current-status)) |
+| `GET` | `/v1/anime/seasonal` | **Implemented** (not yet cached — see [Current Status](#current-status)) |
 | `GET` | `/v1/anime/{malId}/characters` | **Implemented** (not yet cached — see [Current Status](#current-status)) |
 | `POST` | `/v1/recommendations` | Proposed only — not part of the current contract |
 
-All endpoints are public/unauthenticated in v1; response fields are `camelCase`; timestamps are Unix milliseconds. See `CONTRACT.md` for full request/response shapes, status codes, and examples.
+All endpoints are public/unauthenticated in v1; response fields are `camelCase`; timestamps are Unix milliseconds. Exceeding the per-IP rate limit returns `429` with `code: "rate_limited"`. See `CONTRACT.md` for full request/response shapes, status codes, and examples (note: its Endpoints section is accurate, but earlier sections still have unresolved merge-conflict markers — see [Current Status](#current-status)).
 
 ## External Data Sources
 
@@ -154,15 +166,26 @@ Environment variables (see `.env.example`), loaded via `app/config.py`'s `pydant
 | `PORT` | `8000` | Port Uvicorn binds to (Railway sets this in prod) | No — Uvicorn's own `$PORT` handling (see Deployment) is what actually binds the port; `Settings.port` isn't consulted |
 | `ANILIST_ENDPOINT` | `https://graphql.anilist.co` | AniList GraphQL endpoint | Yes — passed into `AniListClient` at startup in `app/main.py` |
 | `CACHE_TTL_SECONDS` | `300` | In-memory cache entry lifetime | No — `app/cache/` isn't implemented yet |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173,https://kyomei-0.vercel.app` | Comma-separated origins allowed by `CORSMiddleware` | Yes — parsed in `app/config.py`, applied in `app/main.py` |
+| `RATE_LIMIT_PER_MINUTE` | `60` | Per-IP request limit (`slowapi`) | Yes — `app/rate_limit.py` |
+| `RATE_LIMIT_ENABLED` | `true` | Toggles rate limiting on/off | Yes — `app/rate_limit.py` |
 
 ## Testing
 
 ```bash
 just test   # = uv run pytest
 uv run pytest tests/test_health.py::test_health_returns_ok   # single test
+just hooks-run   # run the pre-commit hook (ruff check, ruff format --check, pytest) on demand
 ```
 
-Current coverage: `tests/test_health.py` (`GET /health`) and `tests/test_routers_anime.py` (all three `/v1/anime/...` endpoints against a fake `Provider`, covering success, 404, 400, and 500 paths). Per the setup checklist's Testing section, still open: unit tests for `app/anilist/client.py` against mocked HTTP responses, and an integration test against a running server.
+Current coverage:
+- `tests/test_health.py` — `GET /health`
+- `tests/test_routers_anime.py` — all five `/v1/anime/...` endpoints against a fake `Provider`, covering success, 404, 400, and 500 paths
+- `tests/test_anilist_client.py` — `AniListClient` unit tests against mocked HTTP responses (`respx`)
+- `tests/test_integration_health.py` — integration test against a real Uvicorn server bound to a free local port
+- `tests/test_cors.py`, `tests/test_rate_limit.py`, `tests/test_logging.py` — CORS, per-IP rate limiting, and request-logging middleware
+
+`.pre-commit-config.yaml` runs `ruff check`, `ruff format --check`, and `pytest` before each commit — install with `just hooks-install`.
 
 ## CI/CD
 
@@ -199,10 +222,8 @@ Deploy target is **Railway** (per `docs/fastapi-backend-setup-checklist.md` §8)
 
 Near-term (from `docs/fastapi-backend-setup-checklist.md`'s remaining unchecked sections and `CONTRACT.md`'s "Proposed / Not Yet Confirmed"):
 
-- Implement `app/cache/` (in-memory TTL cache, e.g. `cachetools.TTLCache`) and wire `CACHE_TTL_SECONDS` into it — the biggest remaining gap, since `CONTRACT.md` already describes lookups/search/characters as cached
-- Add CORS middleware and request logging/rate limiting
-- Unit tests for `app/anilist/client.py` against mocked HTTP responses, plus an integration test against a running server
-- Frontend cutover: point `kyomei_0`'s `animeProvider.ts` at this backend
+- Implement `app/cache/` (in-memory TTL cache, e.g. `cachetools.TTLCache`) and wire `CACHE_TTL_SECONDS` into it — the biggest remaining gap, since `CONTRACT.md` already describes lookups/search/trending/seasonal/characters as cached
+- Frontend cutover: point `kyomei_0`'s `animeProvider.ts` fully at this backend and retire its client-side AniList/Jikan fallback once reliability is confirmed
 - `POST /v1/recommendations` and watchlist endpoints (drafted in `CONTRACT.md`, not implemented — gated on personalization/auth work)
 
 Longer-term, per `docs/Kyomei-MVP-PRD-v2.1.md` (out of scope for this repo's current phase): authentication (Auth0), PostgreSQL persistence, and personalized recommendation logic.

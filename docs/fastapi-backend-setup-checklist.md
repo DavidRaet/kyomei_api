@@ -82,18 +82,17 @@ This is a skeleton — check items off as completed, and expand any section into
 
 - [X] Add GitHub Actions workflow: run `ruff check`, `pytest` on every PR
 - [X] Add build step to confirm Docker image builds successfully in CI
-- [ ] (Later) Add auto-deploy step once hosting platform is confirmed (Section 8)
+- [X] (Later) Add auto-deploy step once hosting platform is confirmed (Section 8)
 
 ## 8. Deployment
 
 - [X] Deploy to **Railway** — the PRD already fixes this as the hosting platform (it will also host PostgreSQL once that lands in a later pass), so no platform evaluation needed here
 - [X] Set environment variables/secrets on Railway (mirror `.env.example`)
-- [ ] Deploy and verify health-check endpoint (`GET /healthz`) responds correctly in prod
-- [ ] Update frontend's production env var to point at deployed backend URL
+- [X] Deploy and verify health-check endpoint (`GET /healthz`) responds correctly in prod
+- [X] Update frontend's production env var to point at deployed backend URL
 
 ## 9. Cutover from Client-Side Fetching
 
-- [ ] Update `animeProvider.ts` to call the FastAPI backend as primary, with existing client-side AniList/Jikan calls kept as an emergency fallback (temporary safety net)
 - [ ] Monitor for a period (manually or via logs) to confirm backend reliability before removing client-side fallback entirely
 - [ ] Once confident, simplify `animeProvider.ts` to call only the backend; remove now-redundant client-side caching/fallback logic from `src/api/cache.ts` and `src/api/jikan.ts` (or archive them for reference)
 
