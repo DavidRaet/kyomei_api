@@ -13,7 +13,7 @@
 
 ## Overview
 
-`kyomei_api` is a FastAPI backend-for-frontend (BFF) for [`kyomei_0`](https://github.com/DavidRaet/kyomei_0)<!-- adjust link if the frontend repo path differs -->, a TypeScript/Vite anime-tracking client. It orchestrates anime metadata from one upstream source — [AniList](https://anilist.co) (GraphQL, primary)  and is intended to eventually add personalized recommendation logic on top (see `docs/Kyomei-MVP-PRD-v2.1.md`).
+`kyomei_api` is a FastAPI backend-for-frontend (BFF) for [`kyomei_0`](https://github.com/DavidRaet/kyomei_0)<!-- adjust link if the frontend repo path differs -->, a TypeScript/Vite anime-tracking client. It sits between the frontend and [AniList](https://anilist.co) (GraphQL), fetching and normalizing anime metadata so the frontend doesn't have to call AniList directly. Personalized recommendation logic is planned on top of this later (see `docs/Kyomei-MVP-PRD-v2.1.md`).
 
 <!-- HUMAN INPUT: Explain, in plain language for a non-technical reader, what Kyomei is and why it exists. -->
 
@@ -38,14 +38,13 @@ This repository is **a working BFF for all five v1 anime endpoints, with CORS, p
 
 **Not yet done:**
 - **Caching** — `app/cache/` is still an empty stub module. Every request currently hits AniList directly; `CACHE_TTL_SECONDS` exists as a setting but nothing reads it yet, so despite `CONTRACT.md` describing these responses as cached, none of them are
-- Frontend cutover — `kyomei_0` still needs to drop its client-side AniList/Jikan fallback once this backend is trusted
 - Authentication, PostgreSQL, and recommendation logic — explicitly out of scope for this phase (see [Roadmap](#roadmap))
 
 <!-- HUMAN INPUT: Add narrative framing of where the project stands and what "done" means for this phase, if you want more than the checklist summary above. -->
 
 ## Architecture
 
-`kyomei_api` is a BFF, not the recommendation engine described in the PRD — its job in this phase is orchestration and caching only. It mirrors, server-side, the fallback pattern the frontend already implements client-side (`kyomei_0`'s `src/api/animeProvider.ts` → `anilist.ts` primary  / `cache.ts`).
+`kyomei_api` is a BFF, not the recommendation engine described in the PRD — right now its only job is orchestrating AniList calls and caching the results. It mirrors, on the server, the same provider/cache pattern the frontend already uses client-side (`kyomei_0`'s `src/api/animeProvider.ts` calls `anilist.ts` as the data source and `cache.ts` as the cache).
 
 ```mermaid
 flowchart LR
@@ -54,7 +53,11 @@ flowchart LR
     C --> D[AniList<br/>GraphQL]
 ```
 
-Request flow per endpoint today: query AniList → return a normalized `AnimeSummary`/`AnimeDetail`/`CharacterSummary` shape (see `CONTRACT.md`) — the single-anime lookup (`GET /v1/anime/{malId}`) returns the richer `AnimeDetail` (extends `AnimeSummary`), while search/trending/seasonal stay `AnimeSummary`-shaped. The "check cache" / "cache the result" steps shown in the diagram are the intended v1 shape but aren't implemented yet — `app/cache/` is still a stub, so every request hits AniList directly. AniList is the sole upstream source in v1 — there is no fallback provider (see `docs/Kyomei-MVP-PRD-v2.1.md`'s Design Decisions for why Jikan was dropped rather than kept as one). Every request also passes through CORS, per-IP rate limiting, and request-logging middleware before reaching a router.
+Today, each request follows the same path: query AniList, then return a normalized `AnimeSummary`/`AnimeDetail`/`CharacterSummary` shape (see `CONTRACT.md`). The single-anime lookup (`GET /v1/anime/{malId}`) returns the richer `AnimeDetail`, which extends `AnimeSummary`; search, trending, and seasonal all return plain `AnimeSummary` lists.
+
+The "check cache" / "cache the result" steps in the diagram above show the intended v1 design, not what's built yet — `app/cache/` is still a stub, so every request hits AniList directly.
+
+AniList is the only upstream source in v1; there's no fallback provider (see `docs/Kyomei-MVP-PRD-v2.1.md`'s Design Decisions for why Jikan was dropped instead of kept as a fallback). Every request also passes through CORS, per-IP rate limiting, and request-logging middleware before it reaches a router.
 
 ## Tech Stack
 
@@ -88,8 +91,10 @@ kyomei_api/
 │   ├── logging_config.py   # request logging middleware — implemented
 │   └── config.py           # pydantic-settings env/config loading — implemented; PORT and CACHE_TTL_SECONDS aren't actually read yet
 ├── tests/
+│   ├── conftest.py
 │   ├── test_health.py
 │   ├── test_routers_anime.py
+│   ├── test_anime_models.py
 │   ├── test_anilist_client.py
 │   ├── test_integration_health.py
 │   ├── test_cors.py
@@ -117,7 +122,7 @@ git clone https://github.com/DavidRaet/kyomei_api.git
 cd kyomei_api
 uv sync
 cp .env.example .env
-just run   # = uv run uvicorn app.main:app --reload
+just run   # = uv run python -m uvicorn app.main:app --reload
 ```
 
 The server starts on `http://localhost:8000` (or `$PORT` if set). Verify it's up:
@@ -149,7 +154,7 @@ The authoritative contract is [`CONTRACT.md`](./CONTRACT.md) — it is copy-past
 | `GET` | `/v1/anime/{malId}/characters` | **Implemented** (not yet cached — see [Current Status](#current-status)) |
 | `POST` | `/v1/recommendations` | Proposed only — not part of the current contract |
 
-All endpoints are public/unauthenticated in v1; response fields are `camelCase`; timestamps are Unix milliseconds. Exceeding the per-IP rate limit returns `429` with `code: "rate_limited"`. See `CONTRACT.md` for full request/response shapes, status codes, and examples (note: its Endpoints section is accurate, but earlier sections still have unresolved merge-conflict markers — see [Current Status](#current-status)).
+All endpoints are public/unauthenticated in v1; response fields are `camelCase`; timestamps are Unix milliseconds. Exceeding the per-IP rate limit returns `429` with `code: "rate_limited"`. See `CONTRACT.md` for full request/response shapes, status codes, and examples.
 
 ## External Data Sources
 
@@ -173,7 +178,7 @@ Environment variables (see `.env.example`), loaded via `app/config.py`'s `pydant
 ## Testing
 
 ```bash
-just test   # = uv run pytest
+just test   # = uv run python -m pytest
 uv run pytest tests/test_health.py::test_health_returns_ok   # single test
 just hooks-run   # run the pre-commit hook (ruff check, ruff format --check, pytest) on demand
 ```
@@ -181,6 +186,7 @@ just hooks-run   # run the pre-commit hook (ruff check, ruff format --check, pyt
 Current coverage:
 - `tests/test_health.py` — `GET /health`
 - `tests/test_routers_anime.py` — all five `/v1/anime/...` endpoints against a fake `Provider`, covering success, 404, 400, and 500 paths
+- `tests/test_anime_models.py` — Pydantic model validation for `AnimeSummary`/`AnimeDetail`/`CharacterSummary`/`VoiceActorSummary`
 - `tests/test_anilist_client.py` — `AniListClient` unit tests against mocked HTTP responses (`respx`)
 - `tests/test_integration_health.py` — integration test against a real Uvicorn server bound to a free local port
 - `tests/test_cors.py`, `tests/test_rate_limit.py`, `tests/test_logging.py` — CORS, per-IP rate limiting, and request-logging middleware
@@ -210,11 +216,11 @@ Deploy target is **Railway** (per `docs/fastapi-backend-setup-checklist.md` §8)
 
 ## Engineering Decisions
 
-- **FastAPI over Go** — this repo originally started as a Go scaffold (`go mod init` only, no source). Per the PRD's "Design Decisions" section, the backend language changed to Python/FastAPI because the core recommendation logic is a data-shaping/ranking problem better suited to Python's ecosystem, and FastAPI's async-native design plus Pydantic validation maps closely to the TypeScript interfaces already fixed in `CONTRACT.md`. The Go scaffold was retired (`go.mod` removed, `.gitignore` switched to Python-flavored) since there was no Go source to port.
+- **FastAPI over Go** — this repo originally started as a Go scaffold (just `go mod init`, no actual source code). Per the PRD's "Design Decisions" section, the language was switched to Python/FastAPI because the core recommendation logic is a data-shaping/ranking problem that fits Python's ecosystem better, and FastAPI's async design plus Pydantic validation map closely onto the TypeScript interfaces already fixed in `CONTRACT.md`. The Go scaffold was retired (`go.mod` removed, `.gitignore` switched to Python-flavored) since there was no Go code to carry over.
 - **Two independent CI jobs, not one** — `lint-and-test` and `docker-build` run in parallel so a slow Docker build never delays lint/test feedback on a PR (see `docs/learning/cicd-notes.md`).
 - **Two-stage `uv sync` in the Dockerfile** — dependencies are installed before app code is copied in, so Docker's layer cache means editing application code doesn't re-trigger a dependency reinstall (see `docs/learning/docker-notes.md`).
 - **No Redis, database, or auth in v1** — per the setup checklist, this phase is BFF-style orchestration and caching only; in-memory `TTLCache` is used instead of Redis, and personalization/auth/PostgreSQL are deferred to a later phase (see `CONTRACT.md`'s Scope section).
-- **AniList as the sole upstream source, no Jikan fallback** — a Jikan REST client was implemented (`app/jikan/`) and then removed. Jikan is an unofficial scraper/wrapper around MyAnimeList's website rather than a first-party API, which made it flaky and rate-limit-prone; keeping an unreliable source as a "fallback" undermines the resilience a fallback is meant to provide and introduces its own point of failure rather than removing one. See `docs/Kyomei-MVP-PRD-v2.1.md`'s Design Decisions for the full writeup.
+- **AniList as the sole upstream source, no Jikan fallback** — a Jikan REST client was built (`app/jikan/`) and then removed. Jikan isn't an official API — it's an unofficial wrapper around the MyAnimeList website — so it was flaky and easy to rate-limit. A fallback that's unreliable doesn't add resilience; it just adds a second point of failure. See `docs/Kyomei-MVP-PRD-v2.1.md`'s Design Decisions for the full writeup.
 
 <!-- HUMAN INPUT: Explain the reasoning for choosing uv over Poetry (the setup checklist notes this explanation belongs here but doesn't state the reason itself). Add any other personally-made architectural tradeoffs, rejected alternatives, or lessons learned. -->
 

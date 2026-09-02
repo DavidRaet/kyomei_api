@@ -93,14 +93,14 @@ This is a skeleton — check items off as completed, and expand any section into
 
 ## 9. Cutover from Client-Side Fetching
 
-- [ ] Monitor for a period (manually or via logs) to confirm backend reliability before removing client-side fallback entirely
-- [ ] Once confident, simplify `animeProvider.ts` to call only the backend; remove now-redundant client-side caching/fallback logic from `src/api/cache.ts` and `src/api/jikan.ts` (or archive them for reference)
+- [x] Monitor for a period (manually or via logs) to confirm backend reliability before removing client-side fallback entirely
+- [x] Once confident, simplify `animeProvider.ts` to call only the backend; remove now-redundant client-side caching/fallback logic from `src/api/cache.ts` and `src/api/jikan.ts` (or archive them for reference)
 
 ## 10. Documentation
 
-- [ ] Update root `README.md` (frontend repo) to note the backend dependency and link to `kyomei-api` repo
-- [ ] Document the API contract: `CONTRACT.md` is referenced by the PRD as if it already exists, but it does not — either create it for real here, or explicitly treat FastAPI's auto-generated OpenAPI docs (`/docs`, `/openapi.json`) as the interim source of truth until it's written
-- [ ] Write a short architecture note (can be a section in this doc or separate) explaining the BFF pattern used, and linking to the PRD's "Design Decisions" section for the Go → FastAPI rationale, for resume/interview talk-track purposes
+- [x] Update root `README.md` (frontend repo) to note the backend dependency and link to `kyomei-api` repo
+- [x] Document the API contract: `CONTRACT.md` is referenced by the PRD as if it already exists, but it does not — either create it for real here, or explicitly treat FastAPI's auto-generated OpenAPI docs (`/docs`, `/openapi.json`) as the interim source of truth until it's written
+- [x] Write a short architecture note (can be a section in this doc or separate) explaining the BFF pattern used, and linking to the PRD's "Design Decisions" section for the Go → FastAPI rationale, for resume/interview talk-track purposes
 
 ---
 
