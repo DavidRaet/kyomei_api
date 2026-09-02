@@ -23,10 +23,11 @@ This project uses **`uv`** (not poetry/pip directly). A `justfile` wraps the com
 
 ```
 uv sync                                          # install dependencies
-just run     # = uv run uvicorn app.main:app --reload
-just test    # = uv run pytest
+just run     # = uv run python -m uvicorn app.main:app --reload
+just test    # = uv run python -m pytest
 just lint    # = uv run ruff check
 just format  # = uv run ruff format
+just docker  # = docker build -t kyomei_api .
 
 uv run pytest tests/test_health.py::test_health_returns_ok   # run a single test
 ```
@@ -73,7 +74,7 @@ Note a naming inconsistency between docs: `CONTRACT.md` specifies paths under `/
 
 **Any change to the HTTP API boundary — new/changed endpoints, request or response fields, status codes, or error shapes — must be reflected in `CONTRACT.md` in the same change.** `CONTRACT.md` is copy-pasted verbatim into the frontend repo (`kyomei_0`), so an update here without a matching update there (and vice versa) puts the two repos out of sync silently.
 
-Current contract v1 scope (see `CONTRACT.md`'s Endpoints section for full detail — its earlier sections have unresolved merge-conflict markers, see above):
+Current contract v1 scope (see `CONTRACT.md`'s Endpoints section for full detail):
 - `GET /health` — liveness/readiness.
 - `GET /v1/anime/{malId}` — single anime lookup via AniList, contract-documented as cached (not actually cached yet — see above).
 - `GET /v1/anime/search` — title search, same caching note.
