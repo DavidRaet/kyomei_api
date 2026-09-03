@@ -319,7 +319,7 @@ class AniListClient:
         media_list = ((payload.get("data") or {}).get("Page") or {}).get("media") or []
         return [_media_to_summary(media) for media in media_list if media.get("idMal") is not None]
 
-    async def get_trending(self, limit: int = 20) -> list[AnimeSummary]:
+    async def get_trending(self, limit: int = 24) -> list[AnimeSummary]:
         payload = await self._execute(_TRENDING_ANIME_QUERY, {"perPage": limit})
         if payload.get("errors"):
             raise UpstreamError(f"AniList trending query failed: {payload['errors']}")
@@ -327,7 +327,7 @@ class AniListClient:
         media_list = ((payload.get("data") or {}).get("Page") or {}).get("media") or []
         return [_media_to_summary(media) for media in media_list if media.get("idMal") is not None]
 
-    async def get_seasonal(self, year: int, season: str, limit: int = 20) -> list[AnimeSummary]:
+    async def get_seasonal(self, year: int, season: str, limit: int = 24) -> list[AnimeSummary]:
         variables = {"season": season.upper(), "seasonYear": year, "perPage": limit}
         payload = await self._execute(_SEASONAL_ANIME_QUERY, variables)
         if payload.get("errors"):
