@@ -44,7 +44,7 @@ CI (`.github/workflows/ci.yml`) runs two independent jobs on every PR and on pus
 
 ## Architecture
 
-**This is a BFF (backend-for-frontend), not the recommendation engine described in the PRD.** The PRD (`docs/Kyomei-MVP-PRD-v2.1.md`) describes a much larger eventual system (Auth0, PostgreSQL, ratings, watchlist, recommendations). That is explicitly **out of scope** for the current phase — this repo's job right now is orchestration + caching only, per `docs/fastapi-backend-setup-checklist.md`'s "Notes for Claude Code" section:
+**This is a BFF (backend-for-frontend), not the recommendation engine described in the PRD.** The PRD (`docs/Kyomei-MVP-PRD-v2.1.md`) describes a much larger eventual system (Clerk, PostgreSQL, ratings, watchlist, recommendations). That is explicitly **out of scope** for the current phase — this repo's job right now is orchestration + caching only, per `docs/fastapi-backend-setup-checklist.md`'s "Notes for Claude Code" section:
 
 - Keep `app/main.py` wiring-only — no business logic.
 - Organize real logic under `app/` by *domain* (`anime`, `anilist`, `cache`), not by technical layer.

@@ -21,7 +21,7 @@ Per `docs/fastapi-backend-setup-checklist.md`, `kyomei_api` v1 is a BFF-style or
 
 **Explicitly out of scope for `kyomei_api` (v1):**
 - Turning a user's watch history into a ranked recommendation list, and any other personalization logic. This was previously drafted as in-scope but has not been implemented — see `POST /v1/recommendations` under "Proposed / Not Yet Confirmed" below.
-- Authentication (Auth0) — all endpoints are public/unauthenticated in v1 (see Auth section).
+- Authentication (Clerk) — all endpoints are public/unauthenticated in v1 (see Auth section).
 - Any persistent server-side storage — PostgreSQL, Alembic migrations, watchlists, or user accounts. `kyomei_0` currently owns watchlist state locally (see `WatchlistEntry`). If/when this moves server-side, it will be added to this contract as a new versioned endpoint — see "Proposed / Not Yet Confirmed" below.
 
 ## Conventions
