@@ -232,7 +232,7 @@ Near-term (from `docs/fastapi-backend-setup-checklist.md`'s remaining unchecked 
 - Frontend cutover: point `kyomei_0`'s `animeProvider.ts` fully at this backend and retire its client-side AniList/Jikan fallback once reliability is confirmed
 - `POST /v1/recommendations` and watchlist endpoints (drafted in `CONTRACT.md`, not implemented — gated on personalization/auth work)
 
-Longer-term, per `docs/Kyomei-MVP-PRD-v2.1.md` (out of scope for this repo's current phase): authentication (Auth0), PostgreSQL persistence, and personalized recommendation logic.
+Longer-term, per `docs/Kyomei-MVP-PRD-v2.1.md` (out of scope for this repo's current phase): authentication (Clerk), PostgreSQL persistence, and personalized recommendation logic.
 
 <!-- HUMAN INPUT: Add product-vision-level roadmap and prioritization beyond the technical checklist items above. -->
 

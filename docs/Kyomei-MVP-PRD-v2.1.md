@@ -57,11 +57,11 @@ Basic ratings         → Social recommendations    → Mobile app + integration
 
 | Feature | Description | Priority |
 |---|---|---|
-| Sign Up | Email + password registration via Auth0 | P0 |
-| Login | Auth0-managed session with JWT | P0 |
-| Logout | Clear Auth0 session + redirect to home | P0 |
+| Sign Up | Email + password registration via Clerk | P0 |
+| Login | Clerk-managed session with JWT | P0 |
+| Logout | Clear Clerk session + redirect to home | P0 |
 | User Profile | Store email, name, created_at, updated_at | P0 |
-| Password Reset | Auth0-managed email-based reset flow | P1 |
+| Password Reset | Clerk-managed email-based reset flow | P1 |
 
 **Success Criteria:**
 - User can register with a unique email
@@ -69,10 +69,10 @@ Basic ratings         → Social recommendations    → Mobile app + integration
 - Auth errors are clear ("Email already in use")
 
 **Technical Notes:**
-- Auth0 handles all password hashing, session storage, and token rotation
+- Clerk handles all password hashing, session storage, and token rotation
 - No social login in MVP (add Google/Discord in Phase 2)
-- FastAPI backend validates Auth0 JWTs on protected routes via a dependency that fetches Auth0's JWKS endpoint and verifies signature/claims (e.g. using `python-jose` or `pyjwt`)
-- PostgreSQL stores user profile records linked to Auth0's `sub` (user ID)
+- FastAPI backend validates Clerk JWTs on protected routes via a dependency that fetches Clerk's JWKS endpoint and verifies signature/claims (e.g. using `python-jose` or `pyjwt`)
+- PostgreSQL stores user profile records linked to Clerk's `sub` (user ID)
 
 ---
 
@@ -414,7 +414,7 @@ So that I can understand why they liked/disliked a show
 | Performance | <1s page load, <200ms API response | FastAPI's async (ASGI) model keeps I/O-bound recommendation calls fast without blocking |
 | Uptime | 99.5% (MVP on single Railway service) | Upgrade infrastructure in Phase 3 |
 | Database | PostgreSQL, 5 core tables, <10MB initial | Indexes on user_id, anime_id |
-| Security | HTTPS, Auth0 JWT validation, no sensitive data in logs | OWASP compliance |
+| Security | HTTPS, Clerk JWT validation, no sensitive data in logs | OWASP compliance |
 | Scalability | 100–1,000 concurrent users | Uvicorn/Gunicorn worker processes + async I/O handle concurrency comfortably at this scale |
 | Browser Support | Chrome, Firefox, Safari (last 2 versions) | Mobile-responsive (no native app yet) |
 | Accessibility | WCAG 2.1 AA (contrast, keyboard nav, alt text) | Test with accessibility tools |
@@ -469,7 +469,7 @@ So that I can understand why they liked/disliked a show
 ### Backend
 - **Python + FastAPI** — REST API server (ASGI, running under Uvicorn)
 - **Pydantic** — Request/response validation; models map closely to the TypeScript interfaces already defined in `CONTRACT.md`, reducing request/response drift between frontend and backend
-- **Auth0** — Authentication and session management; FastAPI validates JWTs on protected routes via a dependency that verifies tokens against Auth0's JWKS endpoint
+- **Clerk** — Authentication and session management; FastAPI validates JWTs on protected routes via a dependency that verifies tokens against Clerk's JWKS endpoint
 - **Raw SQL (via `asyncpg`)** — Database queries written directly against PostgreSQL; no full ORM for MVP, keeping query behavior transparent and easy to profile
 - **Alembic** — Database migration management (Python-native equivalent of golang-migrate)
 - **Auto-generated OpenAPI docs** — Free with FastAPI (`/docs`, `/openapi.json`); useful for verifying the contract and for future TypeScript type generation
@@ -496,10 +496,10 @@ So that I can understand why they liked/disliked a show
 ## Database Schema (5 Core Tables)
 
 ```sql
--- Users (linked to Auth0 sub)
+-- Users (linked to Clerk sub)
 CREATE TABLE users (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  auth0_id    TEXT UNIQUE NOT NULL,
+  clerk_id    TEXT UNIQUE NOT NULL,
   email       TEXT UNIQUE NOT NULL,
   name        TEXT,
   created_at  TIMESTAMPTZ DEFAULT NOW(),
@@ -569,7 +569,7 @@ CREATE INDEX idx_user_watchlist_user_id ON user_watchlist(user_id);
 ### Auth
 | Method | Endpoint | Description |
 |---|---|---|
-| POST | `/api/auth/callback` | Auth0 callback handler |
+| POST | `/api/auth/callback` | Clerk callback handler |
 | POST | `/api/auth/logout` | Clear session |
 
 ### Users
@@ -619,7 +619,7 @@ kyomei/
 │   ├── main.py                # FastAPI app entry point / ASGI app
 │   ├── routers/                # Route handlers (auth, users, preferences,
 │   │                           #   recommendations, anime, ratings, watchlist)
-│   ├── auth/                  # Auth0 JWT verification dependency (JWKS lookup)
+│   ├── auth/                  # Clerk JWT verification dependency (JWKS lookup)
 │   ├── db/                    # Raw SQL queries (asyncpg) + connection pool
 │   ├── recommendations/       # Tag-matching scoring logic
 │   ├── schemas/               # Pydantic request/response models
@@ -646,7 +646,7 @@ kyomei/
 | Risk | Impact | Mitigation |
 |---|---|---|
 | Backend/product logic learned simultaneously slows development | Medium | FastAPI/Python reuses existing ML/data experience (e.g. PawPal RAG pipeline), so only the recommendation logic is new — not the language/ecosystem too |
-| Auth0 JWT validation misconfiguration | High — security gap | Follow Auth0's Python (FastAPI) integration guide; test with expired/invalid tokens |
+| Clerk JWT validation misconfiguration | High — security gap | Follow Clerk's Python (FastAPI) integration guide; test with expired/invalid tokens |
 | Schema design mistakes | High — hard to fix post-deploy | Validate schema manually in PostgreSQL sandbox before first migration |
 | Poor recommendation quality | High — kills engagement | Manually validate algorithm on 10+ test profiles before launch |
 | AniList rate limiting during seed | Low — one-time script | Add delay between batch requests in seed script |
@@ -684,7 +684,7 @@ A Jikan REST client (`app/jikan/client.py`) was implemented as the fallback data
 
 - [ ] All P0 features implemented and tested
 - [ ] Database schema validated with 300+ anime (via seed script)
-- [ ] Auth0 JWT validation working end-to-end on all protected routes
+- [ ] Clerk JWT validation working end-to-end on all protected routes
 - [ ] REST API fully functional (React → FastAPI → PostgreSQL → React)
 - [ ] Recommendation algorithm manually validated (produces relevant results)
 - [ ] Authentication fully functional (signup, login, logout, password reset)
@@ -706,7 +706,7 @@ A Jikan REST client (`app/jikan/client.py`) was implemented as the fallback data
 - Advanced filters (year, episode length, animation style)
 - Trending section
 - Preference re-tuning based on feedback
-- Social login (Google, Discord via Auth0)
+- Social login (Google, Discord via Clerk)
 - Anthropic Claude integration (recommendation explanations or conversational discovery)
 - Generate TypeScript types directly from FastAPI's auto-generated OpenAPI spec
 
@@ -737,8 +737,8 @@ A Jikan REST client (`app/jikan/client.py`) was implemented as the fallback data
 | Content-Based | Recommendation based on anime metadata (genres, tags) |
 | Cold Start | First recommendations for brand-new users (no rating history yet) |
 | Alembic | Python-native database migration tool used to manage schema changes via versioned migration scripts |
-| Auth0 sub | Auth0's unique user identifier used to link Auth0 accounts to internal user records |
-| JWKS | JSON Web Key Set — Auth0's public keys used by FastAPI to verify JWTs |
+| Clerk sub | Clerk's unique user identifier used to link Clerk accounts to internal user records |
+| JWKS | JSON Web Key Set — Clerk's public keys used by FastAPI to verify JWTs |
 | ASGI | Asynchronous Server Gateway Interface — the async server standard FastAPI runs on (via Uvicorn) |
 
 ---
