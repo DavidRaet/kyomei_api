@@ -35,7 +35,7 @@ This repository is **a working BFF for all five v1 anime endpoints, with CORS, p
 - `Dockerfile` (multi-layer `uv sync` build) verified locally
 - CI (`.github/workflows/ci.yml`): lint + test + Docker build on every PR
 - Deployed to Railway with environment variables mirrored from `.env.example`
-
+- add Clerk-backed authentication to Kyomei API with a `GET /v1/me` endpoints that returns the verified Clerk userID.
 **Not yet done:**
 - **Caching** — `app/cache/` is still an empty stub module. Every request currently hits AniList directly; `CACHE_TTL_SECONDS` exists as a setting but nothing reads it yet, so despite `CONTRACT.md` describing these responses as cached, none of them are
 - Authentication, PostgreSQL, and recommendation logic — explicitly out of scope for this phase (see [Roadmap](#roadmap))
