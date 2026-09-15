@@ -11,8 +11,9 @@ from typing import Any
 import httpx
 from pydantic import ValidationError
 
-from app.anime.errors import AnimeNotFoundError, UpstreamError
+from app.anime.errors import AnimeNotFoundError, UpstreamError, UpstreamUnavailableError
 from app.anime.models import AnimeDetail, AnimeSummary, CharacterSummary, VoiceActorSummary
+from app.logging_config import logger
 
 _DEFAULT_ENDPOINT = "https://graphql.anilist.co"
 _CHARACTERS_PAGE_SIZE = 25
@@ -294,10 +295,12 @@ class AniListClient:
             raise UpstreamError(f"AniList returned malformed JSON (HTTP {response.status_code})") from exc
 
         if response.status_code >= 400 and response.status_code != 404:
-            raise UpstreamError(f"AniList returned HTTP {response.status_code}: {payload.get('errors')}")
+            logger.warning("AniList returned HTTP %s: %s", response.status_code, payload.get("errors"))
+            raise UpstreamUnavailableError(f"AniList returned an error response (HTTP {response.status_code}).")
 
         if response.status_code != 404 and "data" not in payload:
-            raise UpstreamError(f"AniList query failed: {payload.get('errors')}")
+            logger.warning("AniList response missing data: %s", payload.get("errors"))
+            raise UpstreamUnavailableError("AniList responded without the expected data.")
 
         return payload
 
