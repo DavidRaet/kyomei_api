@@ -3,6 +3,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from app.anime.errors import AnimeNotFoundError, UpstreamError
+from app.auth.errors import AuthenticationConfigurationError, UnauthenticatedError
 from app.routers.schemas import ErrorBody, ErrorResponse
 
 
@@ -24,7 +25,19 @@ async def validation_error_handler(request: Request, exc: RequestValidationError
     return JSONResponse(status_code=400, content=body.model_dump())
 
 
+async def unauthenticated_handler(request: Request, exc: UnauthenticatedError) -> JSONResponse:
+    body = ErrorResponse(error=ErrorBody(code="unauthenticated", message="Authentication is required."))
+    return JSONResponse(status_code=401, content=body.model_dump())
+
+
+async def auth_configuration_handler(request: Request, exc: AuthenticationConfigurationError) -> JSONResponse:
+    body = ErrorResponse(error=ErrorBody(code="internal_error", message="Authentication is not configured."))
+    return JSONResponse(status_code=500, content=body.model_dump())
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(AnimeNotFoundError, not_found_handler)
     app.add_exception_handler(UpstreamError, upstream_error_handler)
     app.add_exception_handler(RequestValidationError, validation_error_handler)
+    app.add_exception_handler(UnauthenticatedError, unauthenticated_handler)
+    app.add_exception_handler(AuthenticationConfigurationError, auth_configuration_handler)
