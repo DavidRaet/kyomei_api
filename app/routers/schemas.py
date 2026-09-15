@@ -53,6 +53,10 @@ class CharactersOut(CamelModel):
     data: list[CharacterSummaryOut]
 
 
+class MeOut(CamelModel):
+    user_id: str
+
+
 class ErrorBody(BaseModel):
     code: str
     message: str
