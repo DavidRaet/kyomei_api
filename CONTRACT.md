@@ -21,7 +21,7 @@ Per `docs/fastapi-backend-setup-checklist.md`, `kyomei_api` v1 is a BFF-style or
 
 **Explicitly out of scope for `kyomei_api` (v1):**
 - Turning a user's watch history into a ranked recommendation list, and any other personalization logic. This was previously drafted as in-scope but has not been implemented — see `POST /v1/recommendations` under "Proposed / Not Yet Confirmed" below.
-- Authentication (Clerk) — all endpoints are public/unauthenticated in v1 (see Auth section).
+- Clerk authentication for `GET /v1/me` only; anime and health routes remain public (see Auth section).
 - Any persistent server-side storage — PostgreSQL, Alembic migrations, watchlists, or user accounts. `kyomei_0` currently owns watchlist state locally (see `WatchlistEntry`). If/when this moves server-side, it will be added to this contract as a new versioned endpoint — see "Proposed / Not Yet Confirmed" below.
 
 ## Conventions
@@ -30,7 +30,7 @@ Per `docs/fastapi-backend-setup-checklist.md`, `kyomei_api` v1 is a BFF-style or
 - All request/response bodies are `application/json`.
 - Field names in JSON bodies are `camelCase`. 
 - Timestamps are Unix milliseconds (`number`), matching `WatchlistEntry.addedAt` convention already used in `kyomei_0`.
-- No endpoint requires authentication in v1 (see Auth section).
+- `GET /v1/me` requires Clerk authentication; all other current endpoints are public (see Auth section).
 
 ## Rate Limiting
 
@@ -283,7 +283,22 @@ Path param: `malId` (positive integer). No query params, no body.
 
 ## Auth
 
-None in v1. All endpoints are public/unauthenticated for the MVP. If `kyomei_api` takes on persistent per-user state (watchlist sync, saved preferences), token-based auth will be added here as a breaking contract change — do not assume it exists until this section is updated.
+`GET /v1/me` requires a valid Clerk session token sent as `Authorization: Bearer <token>`. The API verifies the token and its authorized party server-side; it never trusts a user ID supplied by the client. All anime endpoints and `GET /health` remain public.
+
+### `GET /v1/me`
+
+Returns the currently authenticated Clerk user identity.
+
+**Response — success**
+
+```typescript
+interface MeResponse {
+  userId: string;
+}
+```
+
+- `200 OK` — body is `MeResponse`.
+- `401 Unauthorized` — missing, invalid, expired, wrong-party, or non-session token. Body is `ErrorResponse` with `code: "unauthenticated"`.
 
 ## Proposed / Not Yet Confirmed
 
@@ -342,6 +357,7 @@ interface RecommendationsResponse {
 ## Change Log
 
 | Date | Change |
+| 2026-09-14 | Added Clerk-backed `GET /v1/me`. Only this endpoint requires a verified Clerk session token; existing endpoints remain public. |
 |------|--------|
 | 2026-08-22 | Added `upstream_unavailable` error code (`503`) for all five `/v1/anime/...` endpoints, used when AniList itself returns a non-2xx GraphQL response or a 200 response with no `data`. Timeouts and connection failures are unaffected and still map to `500`/`internal_error`. |
 | 2026-08-22 | `GET /v1/anime/{malId}` now returns `AnimeDetail` (extends `AnimeSummary` with `titleRomaji`, `synopsis`, `durationMinutes`, `airedFrom`, `airedTo`, `trailerImage`) so it matches `kyomei_0`'s detail page. `CharacterSummary` gained `favorites` and `voiceActors` (via `VoiceActorSummary`); the previous provisional-shape note is removed. List/search/trending/seasonal endpoints still return `AnimeSummary`. |
