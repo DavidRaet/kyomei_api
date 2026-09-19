@@ -6,9 +6,9 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.requests import Request
 
-from app.auth.dependencies import require_auth
+from app.auth.dependencies import get_current_user
 from app.auth.errors import AuthenticationConfigurationError, UnauthenticatedError
-from app.auth.models import AuthenticatedUser
+from app.auth.models import CurrentUser
 from app.config import Settings
 from app.main import app
 
@@ -28,14 +28,14 @@ def _request_with_auth_state(clerk, settings: Settings) -> Request:
     return Request({"type": "http", "method": "GET", "path": "/v1/me", "headers": [], "app": test_app})
 
 
-def test_require_auth_returns_verified_user_id_and_session_only_options():
+def test_get_current_user_returns_verified_external_identity_and_session_only_options():
     request_state = SimpleNamespace(is_authenticated=True, payload={"sub": "user_verified"})
     clerk = StubClerk(request_state)
     request = _request_with_auth_state(clerk, Settings(clerk_authorized_parties=["http://localhost:5173"]))
 
-    user = asyncio.run(require_auth(request))
+    user = asyncio.run(get_current_user(request))
 
-    assert user == AuthenticatedUser(user_id="user_verified")
+    assert user == CurrentUser(external_identity_id="user_verified")
     assert clerk.options.accepts_token == ["session_token"]
     assert clerk.options.authorized_parties == ["http://localhost:5173"]
 
@@ -48,20 +48,20 @@ def test_require_auth_returns_verified_user_id_and_session_only_options():
         SimpleNamespace(is_authenticated=True, payload={"sub": 123}),
     ],
 )
-def test_require_auth_rejects_unverified_or_missing_user_id(request_state):
+def test_get_current_user_rejects_unverified_or_missing_external_identity(request_state):
     request = _request_with_auth_state(
         StubClerk(request_state), Settings(clerk_authorized_parties=["http://localhost:5173"])
     )
 
     with pytest.raises(UnauthenticatedError):
-        asyncio.run(require_auth(request))
+        asyncio.run(get_current_user(request))
 
 
-def test_require_auth_fails_safely_without_auth_configuration():
+def test_get_current_user_fails_safely_without_auth_configuration():
     request = _request_with_auth_state(None, Settings())
 
     with pytest.raises(AuthenticationConfigurationError):
-        asyncio.run(require_auth(request))
+        asyncio.run(get_current_user(request))
 
 
 def test_production_settings_require_clerk_configuration(monkeypatch):
@@ -81,7 +81,7 @@ def test_me_requires_authentication():
     def reject_request():
         raise UnauthenticatedError
 
-    app.dependency_overrides[require_auth] = reject_request
+    app.dependency_overrides[get_current_user] = reject_request
     try:
         with TestClient(app) as client:
             response = client.get("/v1/me")
@@ -93,7 +93,7 @@ def test_me_requires_authentication():
 
 
 def test_me_returns_dependency_verified_user_id():
-    app.dependency_overrides[require_auth] = lambda: AuthenticatedUser(user_id="user_verified")
+    app.dependency_overrides[get_current_user] = lambda: CurrentUser(external_identity_id="user_verified")
     try:
         with TestClient(app) as client:
             response = client.get("/v1/me")
@@ -105,7 +105,7 @@ def test_me_returns_dependency_verified_user_id():
 
 
 def test_authorization_header_is_not_logged(caplog):
-    app.dependency_overrides[require_auth] = lambda: AuthenticatedUser(user_id="user_verified")
+    app.dependency_overrides[get_current_user] = lambda: CurrentUser(external_identity_id="user_verified")
     try:
         with TestClient(app) as client, caplog.at_level(logging.INFO, logger="kyomei_api"):
             response = client.get("/v1/me", headers={"Authorization": "Bearer secret-token"})
