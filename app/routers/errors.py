@@ -12,6 +12,16 @@ async def not_found_handler(request: Request, exc: AnimeNotFoundError) -> JSONRe
     return JSONResponse(status_code=404, content=body.model_dump())
 
 
+async def upstream_unavailable_handler(request: Request, exc: UpstreamUnavailableError) -> JSONResponse:
+    body = ErrorResponse(
+        error=ErrorBody(
+            code="upstream_unavailable",
+            message="The anime data provider is temporarily unavailable. Please try again shortly.",
+        )
+    )
+    return JSONResponse(status_code=503, content=body.model_dump())
+
+
 async def upstream_error_handler(request: Request, exc: UpstreamError) -> JSONResponse:
     body = ErrorResponse(error=ErrorBody(code="internal_error", message=str(exc)))
     return JSONResponse(status_code=500, content=body.model_dump())
@@ -37,6 +47,7 @@ async def auth_configuration_handler(request: Request, exc: AuthenticationConfig
 
 def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(AnimeNotFoundError, not_found_handler)
+    app.add_exception_handler(UpstreamUnavailableError, upstream_unavailable_handler)
     app.add_exception_handler(UpstreamError, upstream_error_handler)
     app.add_exception_handler(RequestValidationError, validation_error_handler)
     app.add_exception_handler(UnauthenticatedError, unauthenticated_handler)
