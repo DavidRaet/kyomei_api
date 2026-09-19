@@ -15,7 +15,7 @@ repos:
         pass_filenames: false
       - id: pytest
         name: pytest
-        entry: uv run pytest
+        entry: uv run python -m pytest
         language: system
         pass_filenames: false
         always_run: true
