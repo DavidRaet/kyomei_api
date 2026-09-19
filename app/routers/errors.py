@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from app.anime.errors import AnimeNotFoundError, UpstreamError
+from app.anime.errors import AnimeNotFoundError, UpstreamError, UpstreamUnavailableError
 from app.auth.errors import AuthenticationConfigurationError, UnauthenticatedError
 from app.routers.schemas import ErrorBody, ErrorResponse
 
