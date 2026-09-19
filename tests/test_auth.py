@@ -64,7 +64,10 @@ def test_require_auth_fails_safely_without_auth_configuration():
         asyncio.run(require_auth(request))
 
 
-def test_production_settings_require_clerk_configuration():
+def test_production_settings_require_clerk_configuration(monkeypatch):
+    monkeypatch.delenv("CLERK_SECRET_KEY", raising=False)
+    monkeypatch.delenv("CLERK_AUTHORIZED_PARTIES", raising=False)
+
     with pytest.raises(RuntimeError, match="CLERK_SECRET_KEY"):
         Settings(_env_file=None, environment="production").validate_production_auth()
 
