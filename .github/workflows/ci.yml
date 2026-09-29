@@ -8,6 +8,22 @@ on:
 jobs:
   lint-and-test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: kyomei
+          POSTGRES_PASSWORD: kyomei
+          POSTGRES_USER: kyomei
+        options: >-
+          --health-cmd "pg_isready -U kyomei -d kyomei"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    env:
+      DATABASE_URL: postgresql://kyomei:kyomei@localhost:5432/kyomei
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
@@ -15,6 +31,7 @@ jobs:
           enable-cache: true
       - run: uv sync
       - run: uv run ruff check
+      - run: uv run alembic upgrade head
       - run: uv run pytest
 
   docker-build:

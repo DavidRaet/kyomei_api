@@ -174,6 +174,7 @@ Environment variables (see `.env.example`), loaded via `app/config.py`'s `pydant
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:5173,https://kyomei-0.vercel.app` | Comma-separated origins allowed by `CORSMiddleware` | Yes — parsed in `app/config.py`, applied in `app/main.py` |
 | `RATE_LIMIT_PER_MINUTE` | `60` | Per-IP request limit (`slowapi`) | Yes — `app/rate_limit.py` |
 | `RATE_LIMIT_ENABLED` | `true` | Toggles rate limiting on/off | Yes — `app/rate_limit.py` |
+| `DATABASE_URL` | unset in code; local Postgres example in `.env.example` | PostgreSQL connection URL | Yes — creates the async SQLAlchemy engine when configured; required in production |
 
 ## Testing
 
@@ -211,6 +212,8 @@ The service is containerized via `Dockerfile`:
 - `CMD` reads `$PORT` at runtime via shell form (`sh -c "uvicorn ... --port ${PORT:-8000}"`), falling back to `8000` locally
 
 Deploy target is **Railway** (per `docs/fastapi-backend-setup-checklist.md` §8), with environment variables mirrored from `.env.example`. See `docs/learning/docker-notes.md` for the full build/run/verify walkthrough.
+
+For PostgreSQL, set the API service's `DATABASE_URL` variable to `${{Postgres.DATABASE_URL}}` in Railway. Set the service's pre-deploy command to `alembic upgrade head`; it applies committed migrations through Railway's private network before the API starts.
 
 <!-- HUMAN INPUT: Add a live URL here if the Railway deployment is publicly reachable, or note current deployment/traffic status. -->
 

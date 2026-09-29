@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     rate_limit_enabled: bool = True
     clerk_secret_key: SecretStr | None = None
     clerk_authorized_parties: Annotated[list[str], NoDecode] = []
+    database_url: SecretStr | None = None
 
     model_config = {"env_file": ".env"}
 
@@ -43,3 +44,9 @@ class Settings(BaseSettings):
             raise RuntimeError("CLERK_SECRET_KEY must be configured in production.")
         if not self.clerk_authorized_parties:
             raise RuntimeError("CLERK_AUTHORIZED_PARTIES must be configured in production.")
+
+    def validate_production_database(self) -> None:
+        if self.environment != "production":
+            return
+        if self.database_url is None or not self.database_url.get_secret_value():
+            raise RuntimeError("DATABASE_URL must be configured in production.")
