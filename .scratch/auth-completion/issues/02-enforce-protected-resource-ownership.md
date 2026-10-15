@@ -3,7 +3,7 @@
 **Repository:** kyomei_api
 **Source:** auth-spec.md, Feature 8.
 **What to build:** A signed-in user can access only their own existing private API resources, while visitors retain access to public anime discovery.
-**Blocked by:** 01 — Resolve the Kyomei user through CurrentUser.
+**Blocked by:** None.
 **Status:** ready-for-agent
 
 ## Scope
