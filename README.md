@@ -162,6 +162,17 @@ The authoritative contract is [`CONTRACT.md`](./CONTRACT.md) — it is copy-past
 
 Anime endpoints and `/health` are public; `/v1/me` requires a Clerk session token in `Authorization: Bearer <token>`. Exceeding the per-IP rate limit returns `429` with `code: "rate_limited"`. See `CONTRACT.md` for response shapes, status codes, and examples.
 
+## Authentication
+
+Protected routes share `app.auth.dependencies.get_current_user`. It verifies the Clerk session,
+then uses the request's database session to find or create the Kyomei user linked to the verified
+external identity. It returns `CurrentUser` with both `external_identity_id` (the Clerk subject)
+and `kyomei_user_id` (the internal UUID). This database lookup or creation applies to every route
+using the dependency, including `/v1/me`, which returns the internal UUID as `userId`.
+Configure Clerk and `DATABASE_URL`, and apply migrations before using protected routes.
+Invalid sessions are rejected before database access; database unavailability returns `503`.
+The anime routes and `/health` remain public.
+
 ## External Data Sources
 
 | Source | Role | Protocol | Base URL (default) |
@@ -192,6 +203,17 @@ uv run pytest tests/test_health.py::test_health_returns_ok   # single test
 just hooks-run   # run the pre-commit hook (ruff check, ruff format --check, pytest) on demand
 ```
 
+To test protected routes without Clerk or a database, override `get_current_user` through
+`app.dependency_overrides`. The override must return `CurrentUser` with both `external_identity_id`
+and a UUID-valued `kyomei_user_id`; supplying only the external identity is insufficient.
+Clear dependency overrides after each test. When exercising the shared authentication dependency,
+stub Clerk verification and override `get_database_session` with the test session. Assert that
+`get_or_create_user_id` receives that session and the verified Clerk subject so an incorrect
+identity cannot pass unnoticed.
+
+Database integration tests require `TEST_DATABASE_URL` pointing to a disposable PostgreSQL database
+with migrations applied. They skip when it is unset and do not write to the app's `DATABASE_URL`.
+
 Current coverage:
 - `tests/test_health.py` — `GET /health`
 - `tests/test_routers_anime.py` — all five `/v1/anime/...` endpoints against a fake `Provider`, covering success, 404, 400, and 500 paths
@@ -199,6 +221,7 @@ Current coverage:
 - `tests/test_anilist_client.py` — `AniListClient` unit tests against mocked HTTP responses (`respx`)
 - `tests/test_integration_health.py` — integration test against a real Uvicorn server bound to a free local port
 - `tests/test_auth.py`, `tests/test_database.py` — Clerk identity verification/configuration and database setup
+- `tests/test_users.py` — database failure mapping and PostgreSQL user creation, identity separation, and concurrent resolution
 - `tests/test_cors.py`, `tests/test_rate_limit.py`, `tests/test_logging.py` — CORS, per-IP rate limiting, and request-logging middleware
 
 `.pre-commit-config.yaml` runs `ruff check`, `ruff format --check`, and `pytest` before each commit — install with `just hooks-install`.

@@ -138,10 +138,11 @@ def test_me_returns_contract_error_when_database_is_unavailable(verified_client)
     assert response.json() == {"error": {"code": "unavailable", "message": "The database is temporarily unavailable."}}
 
 
-def test_current_user_resolves_verified_identity(verified_client):
+def test_current_user_resolves_verified_identity(verified_client, monkeypatch):
     internal_id = UUID("0ec0a244-4481-4cfb-999c-700dcacbd15b")
     session = MagicMock(spec=AsyncSession)
-    session.scalar = AsyncMock(return_value=internal_id)
+    resolver = AsyncMock(return_value=internal_id)
+    monkeypatch.setattr("app.auth.dependencies.get_or_create_user_id", resolver)
     app.dependency_overrides[get_database_session] = lambda: session
     try:
         response = verified_client.get("/v1/me")
@@ -150,6 +151,8 @@ def test_current_user_resolves_verified_identity(verified_client):
 
     assert response.status_code == 200
     assert response.json() == {"userId": str(internal_id)}
+
+    resolver.assert_awaited_once_with(session, "user_verified")
 
 
 @pytest.mark.parametrize("error", [TimeoutError("pool exhausted"), OperationalError("connect", {}, Exception())])
