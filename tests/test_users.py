@@ -7,6 +7,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.exc import TimeoutError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.dependencies import get_current_user
 from app.database.errors import DatabaseUnavailableError
 from app.database.models import User
 from app.database.session import create_database_engine, create_session_factory
@@ -34,14 +35,16 @@ async def test_user_creation_is_stable_distinct_and_concurrency_safe(test_databa
 
     async def resolve(clerk_user_id):
         async with session_factory() as session:
-            return await get_or_create_user_id(session, clerk_user_id)
+            return await get_current_user(clerk_user_id, session)
 
     try:
         first_ids = await asyncio.gather(*(resolve(first_clerk_id) for _ in range(5)))
-        first_id = first_ids[0]
-        assert first_ids == [first_id] * 5
-        assert first_id == await resolve(first_clerk_id)
-        assert first_id != await resolve(second_clerk_id)
+        first_user = first_ids[0]
+        first_id = first_user.kyomei_user_id
+        assert first_user.external_identity_id == first_clerk_id
+        assert first_ids == [first_user] * 5
+        assert first_user == await resolve(first_clerk_id)
+        assert first_id != (await resolve(second_clerk_id)).kyomei_user_id
 
         async with session_factory() as session:
             rows = (await session.scalars(select(User).where(User.clerk_user_id == first_clerk_id))).all()

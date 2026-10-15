@@ -4,7 +4,7 @@
 **Source:** auth-spec.md, Feature 7; Features 1–6 are complete.
 **What to build:** A verified session immediately resolves or creates a Kyomei application user through the shared CurrentUser dependency, so every protected business route receives the internal user identity without depending on webhook delivery.
 **Blocked by:** None (can start immediately).
-**Status:** ready-for-agent
+**Status:** resolved
 
 ## Context and scope
 
@@ -12,13 +12,23 @@ The existing /v1/me route already calls a concurrency-safe get-or-create operati
 
 ## Acceptance criteria
 
-- [ ] CurrentUser includes the verified external identity and resolved internal Kyomei user ID.
-- [ ] The first authenticated request requiring an application user provisions it synchronously; subsequent requests reuse its ID without waiting for webhooks.
-- [ ] Concurrent first requests for the same external identity resolve to exactly one persisted user.
-- [ ] /v1/me obtains the internal ID from CurrentUser and preserves its existing response shape.
-- [ ] Authentication is verified before provisioning; invalid sessions never create users.
-- [ ] Database unavailability preserves the documented 503 error response, while invalid authentication remains 401.
-- [ ] Business routes can override CurrentUser in tests without invoking Clerk; public routes do not acquire an authentication/database requirement.
-- [ ] Focused tests cover dependency orchestration, stable identity, concurrency, and errors; the full backend test suite and Ruff pass.
-- [ ] Any HTTP boundary changes are documented in both repositories' contracts.
+- [x] CurrentUser includes the verified external identity and resolved internal Kyomei user ID.
+- [x] The first authenticated request requiring an application user provisions it synchronously; subsequent requests reuse its ID without waiting for webhooks.
+- [x] Concurrent first requests for the same external identity resolve to exactly one persisted user.
+- [x] /v1/me obtains the internal ID from CurrentUser and preserves its existing response shape.
+- [x] Authentication is verified before provisioning; invalid sessions never create users.
+- [x] Database unavailability preserves the documented 503 error response, while invalid authentication remains 401.
+- [x] Business routes can override CurrentUser in tests without invoking Clerk; public routes do not acquire an authentication/database requirement.
+- [x] Focused tests cover dependency orchestration, stable identity, concurrency, and errors; the full backend test suite and Ruff pass.
+- [x] Any HTTP boundary changes are documented in both repositories' contracts.
+
+## Comments
+
+Implemented verification as a sub-dependency that runs before database session acquisition. `get_current_user`
+reuses the existing concurrency-safe user resolver and returns both identity IDs; `/v1/me` only reads the
+resolved Kyomei ID. No HTTP boundary changed, so neither repository's contract requires an update.
+
+Validation: `uv run pytest -q --tb=short` passed all 82 tests with `TEST_DATABASE_URL` pointing to an isolated
+local PostgreSQL database, including concurrent provisioning. `uv run ruff check` and formatting checks
+for changed Python files passed. No separate type checker is configured in this repository.
 
