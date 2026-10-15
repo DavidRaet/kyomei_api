@@ -55,3 +55,6 @@ See `docs/agents/triage-labels.md`.
 
 Single-context layout: root `GLOSSARY.md` and `docs/adr/`.
 See `docs/agents/domain.md`.
+
+### Note
+Any changes that may involve such as the change of a data model, route, etc. should be documented in `CONTRACT.md`. Additionally, changes in general should be documented in README.md.
