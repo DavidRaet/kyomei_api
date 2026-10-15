@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from types import SimpleNamespace
+from uuid import UUID
 
 import pytest
 from fastapi.testclient import TestClient
@@ -10,7 +11,10 @@ from app.auth.dependencies import get_current_user
 from app.auth.errors import AuthenticationConfigurationError, UnauthenticatedError
 from app.auth.models import CurrentUser
 from app.config import Settings
+from app.database.errors import DatabaseUnavailableError
+from app.database.session import get_database_session
 from app.main import app
+from app.routers import auth as auth_router
 
 
 class StubClerk:
@@ -92,8 +96,17 @@ def test_me_requires_authentication():
     assert response.json() == {"error": {"code": "unauthenticated", "message": "Authentication is required."}}
 
 
-def test_me_returns_dependency_verified_user_id():
+def test_me_returns_internal_user_id_for_verified_clerk_identity(monkeypatch):
+    internal_id = UUID("0ec0a244-4481-4cfb-999c-700dcacbd15b")
+    seen = []
+
+    async def resolve_user(session, clerk_user_id):
+        seen.append(clerk_user_id)
+        return internal_id
+
+    monkeypatch.setattr(auth_router, "get_or_create_user_id", resolve_user)
     app.dependency_overrides[get_current_user] = lambda: CurrentUser(external_identity_id="user_verified")
+    app.dependency_overrides[get_database_session] = lambda: object()
     try:
         with TestClient(app) as client:
             response = client.get("/v1/me")
@@ -101,10 +114,32 @@ def test_me_returns_dependency_verified_user_id():
         app.dependency_overrides.clear()
 
     assert response.status_code == 200
-    assert response.json() == {"userId": "user_verified"}
+    assert response.json() == {"userId": str(internal_id)}
+    assert seen == ["user_verified"]
 
 
-def test_authorization_header_is_not_logged(caplog):
+def test_me_returns_contract_error_when_database_is_unavailable():
+    def unavailable():
+        raise DatabaseUnavailableError
+
+    app.dependency_overrides[get_current_user] = lambda: CurrentUser(external_identity_id="user_verified")
+    app.dependency_overrides[get_database_session] = unavailable
+    try:
+        with TestClient(app) as client:
+            response = client.get("/v1/me")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 503
+    assert response.json() == {"error": {"code": "unavailable", "message": "The database is temporarily unavailable."}}
+
+
+def test_authorization_header_is_not_logged(caplog, monkeypatch):
+    async def resolve_user(session, clerk_user_id):
+        return UUID("0ec0a244-4481-4cfb-999c-700dcacbd15b")
+
+    monkeypatch.setattr(auth_router, "get_or_create_user_id", resolve_user)
+    app.dependency_overrides[get_database_session] = lambda: object()
     app.dependency_overrides[get_current_user] = lambda: CurrentUser(external_identity_id="user_verified")
     try:
         with TestClient(app) as client, caplog.at_level(logging.INFO, logger="kyomei_api"):

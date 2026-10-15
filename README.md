@@ -13,7 +13,7 @@
 
 ## Overview
 
-`kyomei_api` is a FastAPI backend-for-frontend (BFF) for [`kyomei_0`](https://github.com/DavidRaet/kyomei_0)<!-- adjust link if the frontend repo path differs -->, a TypeScript/Vite anime-tracking client. It sits between the frontend and [AniList](https://anilist.co) (GraphQL), fetching and normalizing anime metadata so the frontend doesn't have to call AniList directly. Personalized recommendation logic is planned on top of this later (see `docs/Kyomei-MVP-PRD-v2.1.md`).
+`kyomei_api` is a FastAPI backend-for-frontend (BFF) for [`kyomei_0`](https://github.com/DavidRaet/kyomei_0), a TypeScript/Vite anime-tracking client. It provides anime metadata from [AniList](https://anilist.co) (GraphQL) and a Clerk-authenticated current-user endpoint backed by Kyomei user records. Personalized recommendations and other persisted user data are not implemented yet (see `docs/Kyomei-MVP-PRD-v2.1.md`).
 
 <!-- HUMAN INPUT: Explain, in plain language for a non-technical reader, what Kyomei is and why it exists. -->
 
@@ -27,35 +27,36 @@ This repository is **a working BFF for all five v1 anime endpoints, with CORS, p
 
 **Done:**
 - Repo/project structure, `uv`-based dependency management, `ruff` lint/format config, `justfile` commands, a `pre-commit` hook (`ruff check`, `ruff format --check`, `pytest`)
-- `GET /health`, plus five contract endpoints — `GET /v1/anime/{malId}`, `GET /v1/anime/search`, `GET /v1/anime/trending`, `GET /v1/anime/seasonal`, `GET /v1/anime/{malId}/characters` — implemented against AniList's GraphQL API, with camelCase response schemas and contract-matching error handling (400/404/500)
+- `GET /health`, five anime endpoints, and Clerk-authenticated `GET /v1/me`, which returns the internal Kyomei user ID
 - `app/anime/` (models, errors, `Provider` protocol) and `app/anilist/client.py` (the AniList GraphQL client) — domain logic and upstream client
 - CORS middleware scoped to configured origins, per-IP rate limiting (`slowapi`, 429s on breach) and structured request logging — all wired in `app/main.py`
-- `app/config.py` wired up via `pydantic-settings` and loaded in `app/main.py` — `ANILIST_ENDPOINT`, `CORS_ALLOWED_ORIGINS`, and the rate-limit settings are read; `PORT` and `CACHE_TTL_SECONDS` still aren't (see below)
+- `app/config.py` loads settings with `pydantic-settings`; production startup requires Clerk credentials/authorized parties and `DATABASE_URL`
+- Async SQLAlchemy database sessions, a Kyomei user model, and an Alembic migration are present; `/v1/me` persists user mappings
 - Tests: router-level (`tests/test_routers_anime.py`, a fake `Provider`), AniList client unit tests against mocked HTTP responses (`tests/test_anilist_client.py`, `respx`), an integration test against a running server (`tests/test_integration_health.py`), plus CORS/rate-limit/logging tests
 - `Dockerfile` (multi-layer `uv sync` build) verified locally
 - CI (`.github/workflows/ci.yml`): lint + test + Docker build on every PR
 - Deployed to Railway with environment variables mirrored from `.env.example`
-- add Clerk-backed authentication to Kyomei API with a `GET /v1/me` endpoints that returns the verified Clerk userID.
 **Not yet done:**
 - **Caching** — `app/cache/` is still an empty stub module. Every request currently hits AniList directly; `CACHE_TTL_SECONDS` exists as a setting but nothing reads it yet, so despite `CONTRACT.md` describing these responses as cached, none of them are
-- Authentication, PostgreSQL, and recommendation logic — explicitly out of scope for this phase (see [Roadmap](#roadmap))
+- Preferences, ratings, watchlists, and recommendation logic (see [Roadmap](#roadmap))
 
 <!-- HUMAN INPUT: Add narrative framing of where the project stands and what "done" means for this phase, if you want more than the checklist summary above. -->
 
 ## Architecture
 
-`kyomei_api` is a BFF, not the recommendation engine described in the PRD — right now its only job is orchestrating AniList calls and caching the results. It mirrors, on the server, the same provider/cache pattern the frontend already uses client-side (`kyomei_0`'s `src/api/animeProvider.ts` calls `anilist.ts` as the data source and `cache.ts` as the cache).
+`kyomei_api` is a BFF, not the recommendation engine described in the PRD — it orchestrates AniList calls and exposes a Clerk-authenticated identity boundary. Caching is not implemented yet.
 
 ```mermaid
 flowchart LR
     A[kyomei_0<br/>frontend] --> B[kyomei_api<br/>BFF]
-    B --> C[in-memory<br/>TTL cache]
-    C --> D[AniList<br/>GraphQL]
+    B --> C[AniList<br/>GraphQL]
+    B --> D[Clerk<br/>session verification]
+    B --> E[(PostgreSQL<br/>Kyomei users)]
 ```
 
 Today, each request follows the same path: query AniList, then return a normalized `AnimeSummary`/`AnimeDetail`/`CharacterSummary` shape (see `CONTRACT.md`). The single-anime lookup (`GET /v1/anime/{malId}`) returns the richer `AnimeDetail`, which extends `AnimeSummary`; search, trending, and seasonal all return plain `AnimeSummary` lists.
 
-The "check cache" / "cache the result" steps in the diagram above show the intended v1 design, not what's built yet — `app/cache/` is still a stub, so every request hits AniList directly.
+Each anime request currently queries AniList directly; the cache module remains a stub. `/v1/me` verifies the Clerk session token, finds or creates the linked Kyomei user, and returns its internal UUID as `userId`.
 
 AniList is the only upstream source in v1; there's no fallback provider (see `docs/Kyomei-MVP-PRD-v2.1.md`'s Design Decisions for why Jikan was dropped instead of kept as a fallback). Every request also passes through CORS, per-IP rate limiting, and request-logging middleware before it reaches a router.
 
@@ -69,6 +70,8 @@ AniList is the only upstream source in v1; there's no fallback provider (see `do
 | ASGI server | Uvicorn (`[standard]`, ≥0.52) | `pyproject.toml` |
 | Outbound HTTP client | `httpx` (≥0.28) — used by the AniList client and integration tests | `pyproject.toml` |
 | Config loading | `pydantic-settings` (≥2.15) | `pyproject.toml`, `app/config.py` |
+| Authentication | Clerk Backend SDK | `pyproject.toml`, `app/auth/` |
+| Database | SQLAlchemy async + psycopg, Alembic | `pyproject.toml`, `app/database/`, `alembic/` |
 | Rate limiting | `slowapi` (≥0.1.9) — per-IP, in `app/rate_limit.py` | `pyproject.toml`, `app/rate_limit.py` |
 | Lint/format | `ruff` (≥0.16) | `pyproject.toml`, `justfile` |
 | Testing | `pytest` (≥8.0), `respx` (mocked HTTP for AniList client tests) | `pyproject.toml`, `tests/` |
@@ -85,11 +88,14 @@ kyomei_api/
 │   ├── main.py             # FastAPI app creation, lifespan-managed AniListClient, CORS + rate-limit + logging middleware, GET /health, mounts app/routers/anime.py — wiring only
 │   ├── anime/              # domain logic: models.py, errors.py, provider.py (Provider Protocol) — implemented; no separate orchestration/service.py yet
 │   ├── anilist/            # client.py — async AniList GraphQL client (httpx) — implemented
-│   ├── cache/              # stub — in-memory cache (e.g. cachetools.TTLCache) not yet implemented; Redis is a documented future upgrade
-│   ├── routers/            # anime.py, schemas.py, errors.py — five /v1/anime endpoints, camelCase Pydantic models, exception handlers — implemented
+│   ├── cache/              # stub; response caching is not implemented
+│   ├── auth/               # Clerk token verification, auth errors, and CurrentUser abstraction
+│   ├── database/           # async SQLAlchemy sessions and Kyomei user model
+│   ├── routers/            # anime.py and auth.py endpoints, schemas, and exception handlers
 │   ├── rate_limit.py       # slowapi Limiter + 429 handler — implemented
 │   ├── logging_config.py   # request logging middleware — implemented
-│   └── config.py           # pydantic-settings env/config loading — implemented; PORT and CACHE_TTL_SECONDS aren't actually read yet
+│   └── config.py           # pydantic-settings env/config loading; PORT is served by Uvicorn and cache TTL is not yet used
+├── alembic/                # migration configuration and users table migration
 ├── tests/
 │   ├── conftest.py
 │   ├── test_health.py
@@ -99,13 +105,12 @@ kyomei_api/
 │   ├── test_integration_health.py
 │   ├── test_cors.py
 │   ├── test_rate_limit.py
-│   └── test_logging.py
+│   ├── test_logging.py
+│   ├── test_auth.py
+│   └── test_database.py
 ├── docs/
 │   ├── Kyomei-MVP-PRD-v2.1.md
 │   ├── fastapi-backend-setup-checklist.md
-│   └── learning/
-│       ├── cicd-notes.md
-│       └── docker-notes.md
 ├── CONTRACT.md
 ├── Dockerfile
 ├── justfile
@@ -131,7 +136,7 @@ The server starts on `http://localhost:8000` (or `$PORT` if set). Verify it's up
 curl http://localhost:8000/health        # {"status": "ok"}
 ```
 
-Swagger UI is available at `http://localhost:8000/docs` (auto-generated by FastAPI; documents `/health` and the five `/v1/anime/...` routes).
+Swagger UI is available at `http://localhost:8000/docs` (auto-generated by FastAPI; documents `/health`, the anime routes, and `/v1/me`).
 
 **Run with Docker instead:**
 
@@ -152,9 +157,10 @@ The authoritative contract is [`CONTRACT.md`](./CONTRACT.md) — it is copy-past
 | `GET` | `/v1/anime/trending` | **Implemented** (not yet cached — see [Current Status](#current-status)) |
 | `GET` | `/v1/anime/seasonal` | **Implemented** (not yet cached — see [Current Status](#current-status)) |
 | `GET` | `/v1/anime/{malId}/characters` | **Implemented** (not yet cached — see [Current Status](#current-status)) |
+| `GET` | `/v1/me` | **Implemented** (requires a valid Clerk session token) |
 | `POST` | `/v1/recommendations` | Proposed only — not part of the current contract |
 
-All endpoints are public/unauthenticated in v1; response fields are `camelCase`; timestamps are Unix milliseconds. Exceeding the per-IP rate limit returns `429` with `code: "rate_limited"`. See `CONTRACT.md` for full request/response shapes, status codes, and examples.
+Anime endpoints and `/health` are public; `/v1/me` requires a Clerk session token in `Authorization: Bearer <token>`. Exceeding the per-IP rate limit returns `429` with `code: "rate_limited"`. See `CONTRACT.md` for response shapes, status codes, and examples.
 
 ## External Data Sources
 
@@ -170,11 +176,13 @@ Environment variables (see `.env.example`), loaded via `app/config.py`'s `pydant
 |---|---|---|---|
 | `PORT` | `8000` | Port Uvicorn binds to (Railway sets this in prod) | No — Uvicorn's own `$PORT` handling (see Deployment) is what actually binds the port; `Settings.port` isn't consulted |
 | `ANILIST_ENDPOINT` | `https://graphql.anilist.co` | AniList GraphQL endpoint | Yes — passed into `AniListClient` at startup in `app/main.py` |
-| `CACHE_TTL_SECONDS` | `300` | In-memory cache entry lifetime | No — `app/cache/` isn't implemented yet |
+| `CACHE_TTL_SECONDS` | `300` | Planned in-memory cache entry lifetime | No — `app/cache/` isn't implemented yet |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:5173,https://kyomei-0.vercel.app` | Comma-separated origins allowed by `CORSMiddleware` | Yes — parsed in `app/config.py`, applied in `app/main.py` |
 | `RATE_LIMIT_PER_MINUTE` | `60` | Per-IP request limit (`slowapi`) | Yes — `app/rate_limit.py` |
 | `RATE_LIMIT_ENABLED` | `true` | Toggles rate limiting on/off | Yes — `app/rate_limit.py` |
-| `DATABASE_URL` | unset in code; local Postgres example in `.env.example` | PostgreSQL connection URL | Yes — creates the async SQLAlchemy engine when configured; required in production |
+| `CLERK_SECRET_KEY` | unset | Clerk backend secret used to verify session tokens | Required in production; optional in development |
+| `CLERK_AUTHORIZED_PARTIES` | `http://localhost:5173,http://localhost:4173` | Comma-separated trusted frontend origins for Clerk token verification | Required in production; optional in development |
+| `DATABASE_URL` | local PostgreSQL URL in `.env.example` | PostgreSQL connection URL | Creates an async SQLAlchemy engine when non-empty; required in production |
 
 ## Testing
 
@@ -190,6 +198,7 @@ Current coverage:
 - `tests/test_anime_models.py` — Pydantic model validation for `AnimeSummary`/`AnimeDetail`/`CharacterSummary`/`VoiceActorSummary`
 - `tests/test_anilist_client.py` — `AniListClient` unit tests against mocked HTTP responses (`respx`)
 - `tests/test_integration_health.py` — integration test against a real Uvicorn server bound to a free local port
+- `tests/test_auth.py`, `tests/test_database.py` — Clerk identity verification/configuration and database setup
 - `tests/test_cors.py`, `tests/test_rate_limit.py`, `tests/test_logging.py` — CORS, per-IP rate limiting, and request-logging middleware
 
 `.pre-commit-config.yaml` runs `ruff check`, `ruff format --check`, and `pytest` before each commit — install with `just hooks-install`.
@@ -211,9 +220,11 @@ The service is containerized via `Dockerfile`:
 - Dependencies are installed in a layer separate from application code (`COPY pyproject.toml uv.lock ./` → `uv sync --no-install-project`, then `COPY app ./app` → `uv sync`), so editing source doesn't invalidate the dependency-install layer
 - `CMD` reads `$PORT` at runtime via shell form (`sh -c "uvicorn ... --port ${PORT:-8000}"`), falling back to `8000` locally
 
-Deploy target is **Railway** (per `docs/fastapi-backend-setup-checklist.md` §8), with environment variables mirrored from `.env.example`. See `docs/learning/docker-notes.md` for the full build/run/verify walkthrough.
+Deploy target is **Railway** (per `docs/fastapi-backend-setup-checklist.md` §8), with environment variables mirrored from `.env.example`.
 
-For PostgreSQL, set the API service's `DATABASE_URL` variable to `${{Postgres.DATABASE_URL}}` in Railway. Set the service's pre-deploy command to `alembic upgrade head`; it applies committed migrations through Railway's private network before the API starts.
+For PostgreSQL, set the API service's `DATABASE_URL` variable to `${{Postgres.DATABASE_URL}}` in Railway. Run `uv run alembic upgrade head` before serving `/v1/me`.
+
+Database integration tests use `TEST_DATABASE_URL` and skip when it is unset. Point it at a disposable PostgreSQL database with migrations applied; without it, `just test` does not write to the app's `DATABASE_URL`.
 
 <!-- HUMAN INPUT: Add a live URL here if the Railway deployment is publicly reachable, or note current deployment/traffic status. -->
 
@@ -222,7 +233,7 @@ For PostgreSQL, set the API service's `DATABASE_URL` variable to `${{Postgres.DA
 - **FastAPI over Go** — this repo originally started as a Go scaffold (just `go mod init`, no actual source code). Per the PRD's "Design Decisions" section, the language was switched to Python/FastAPI because the core recommendation logic is a data-shaping/ranking problem that fits Python's ecosystem better, and FastAPI's async design plus Pydantic validation map closely onto the TypeScript interfaces already fixed in `CONTRACT.md`. The Go scaffold was retired (`go.mod` removed, `.gitignore` switched to Python-flavored) since there was no Go code to carry over.
 - **Two independent CI jobs, not one** — `lint-and-test` and `docker-build` run in parallel so a slow Docker build never delays lint/test feedback on a PR (see `docs/learning/cicd-notes.md`).
 - **Two-stage `uv sync` in the Dockerfile** — dependencies are installed before app code is copied in, so Docker's layer cache means editing application code doesn't re-trigger a dependency reinstall (see `docs/learning/docker-notes.md`).
-- **No Redis, database, or auth in v1** — per the setup checklist, this phase is BFF-style orchestration and caching only; in-memory `TTLCache` is used instead of Redis, and personalization/auth/PostgreSQL are deferred to a later phase (see `CONTRACT.md`'s Scope section).
+- **Clerk identity boundary, Kyomei user persistence** — `/v1/me` verifies Clerk session tokens and returns a stable internal Kyomei user UUID. The first request creates its database row.
 - **AniList as the sole upstream source, no Jikan fallback** — a Jikan REST client was built (`app/jikan/`) and then removed. Jikan isn't an official API — it's an unofficial wrapper around the MyAnimeList website — so it was flaky and easy to rate-limit. A fallback that's unreliable doesn't add resilience; it just adds a second point of failure. See `docs/Kyomei-MVP-PRD-v2.1.md`'s Design Decisions for the full writeup.
 
 <!-- HUMAN INPUT: Explain the reasoning for choosing uv over Poetry (the setup checklist notes this explanation belongs here but doesn't state the reason itself). Add any other personally-made architectural tradeoffs, rejected alternatives, or lessons learned. -->
@@ -235,7 +246,7 @@ Near-term (from `docs/fastapi-backend-setup-checklist.md`'s remaining unchecked 
 - Frontend cutover: point `kyomei_0`'s `animeProvider.ts` fully at this backend and retire its client-side AniList/Jikan fallback once reliability is confirmed
 - `POST /v1/recommendations` and watchlist endpoints (drafted in `CONTRACT.md`, not implemented — gated on personalization/auth work)
 
-Longer-term, per `docs/Kyomei-MVP-PRD-v2.1.md` (out of scope for this repo's current phase): authentication (Clerk), PostgreSQL persistence, and personalized recommendation logic.
+Next steps: add Kyomei-owned preferences and ratings against the internal user ID, then build personalized recommendation logic. Shared anime response caching also remains unimplemented.
 
 <!-- HUMAN INPUT: Add product-vision-level roadmap and prioritization beyond the technical checklist items above. -->
 

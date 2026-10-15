@@ -1,0 +1,40 @@
+import asyncio
+from uuid import uuid4
+
+import pytest
+from sqlalchemy import delete, select
+
+from app.database.models import User
+from app.database.session import create_database_engine, create_session_factory
+from app.database.users import get_or_create_user_id
+
+
+@pytest.mark.asyncio
+async def test_user_creation_is_stable_distinct_and_concurrency_safe(test_database_url):
+    engine = create_database_engine(test_database_url)
+    session_factory = create_session_factory(engine)
+    first_clerk_id = f"user_test_{uuid4().hex}"
+    second_clerk_id = f"user_test_{uuid4().hex}"
+
+    async def resolve(clerk_user_id):
+        async with session_factory() as session:
+            return await get_or_create_user_id(session, clerk_user_id)
+
+    try:
+        first_ids = await asyncio.gather(*(resolve(first_clerk_id) for _ in range(5)))
+        first_id = first_ids[0]
+        assert first_ids == [first_id] * 5
+        assert first_id == await resolve(first_clerk_id)
+        assert first_id != await resolve(second_clerk_id)
+
+        async with session_factory() as session:
+            rows = (await session.scalars(select(User).where(User.clerk_user_id == first_clerk_id))).all()
+            assert len(rows) == 1
+            assert rows[0].id == first_id
+            assert rows[0].created_at is not None
+            assert rows[0].updated_at is not None
+    finally:
+        async with session_factory() as session:
+            await session.execute(delete(User).where(User.clerk_user_id.in_([first_clerk_id, second_clerk_id])))
+            await session.commit()
+        await engine.dispose()

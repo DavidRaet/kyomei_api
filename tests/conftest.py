@@ -13,8 +13,8 @@ def pytest_asyncio_loop_factories(config, item):
 
 
 @pytest.fixture
-def database_url() -> str:
-    database_url = os.environ.get("DATABASE_URL")
+def test_database_url() -> str:
+    database_url = os.environ.get("TEST_DATABASE_URL")
     if not database_url:
-        pytest.skip("DATABASE_URL is not configured")
+        pytest.skip("TEST_DATABASE_URL is not configured")
     return database_url

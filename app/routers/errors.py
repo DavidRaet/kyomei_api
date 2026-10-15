@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse
 
 from app.anime.errors import AnimeNotFoundError, UpstreamError, UpstreamUnavailableError
 from app.auth.errors import AuthenticationConfigurationError, UnauthenticatedError
+from app.database.errors import DatabaseUnavailableError
 from app.routers.schemas import ErrorBody, ErrorResponse
 
 
@@ -45,6 +46,11 @@ async def auth_configuration_handler(request: Request, exc: AuthenticationConfig
     return JSONResponse(status_code=500, content=body.model_dump())
 
 
+async def database_unavailable_handler(request: Request, exc: DatabaseUnavailableError) -> JSONResponse:
+    body = ErrorResponse(error=ErrorBody(code="unavailable", message="The database is temporarily unavailable."))
+    return JSONResponse(status_code=503, content=body.model_dump())
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(AnimeNotFoundError, not_found_handler)
     app.add_exception_handler(UpstreamUnavailableError, upstream_unavailable_handler)
@@ -52,3 +58,4 @@ def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(RequestValidationError, validation_error_handler)
     app.add_exception_handler(UnauthenticatedError, unauthenticated_handler)
     app.add_exception_handler(AuthenticationConfigurationError, auth_configuration_handler)
+    app.add_exception_handler(DatabaseUnavailableError, database_unavailable_handler)
