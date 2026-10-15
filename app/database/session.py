@@ -4,6 +4,8 @@ from fastapi import Request
 from pydantic import SecretStr
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 
+from app.database.errors import DatabaseUnavailableError
+
 
 def normalize_database_url(database_url: SecretStr | str) -> str:
     """Adapt Railway and standard PostgreSQL URLs for SQLAlchemy's psycopg dialect."""
@@ -29,7 +31,7 @@ async def get_database_session(request: Request) -> AsyncGenerator[AsyncSession]
         request.app.state, "database_session_factory", None
     )
     if session_factory is None:
-        raise RuntimeError("Database is not configured.")
+        raise DatabaseUnavailableError
 
     async with session_factory() as session:
         yield session

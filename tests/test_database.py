@@ -65,8 +65,8 @@ async def test_database_session_dependency_yields_request_scoped_session():
 
 
 @pytest.mark.asyncio
-async def test_async_engine_connects_and_provides_sessions(database_url):
-    engine = create_database_engine(SecretStr(database_url))
+async def test_async_engine_connects_and_provides_sessions(test_database_url):
+    engine = create_database_engine(SecretStr(test_database_url))
     session_factory = create_session_factory(engine)
 
     try:

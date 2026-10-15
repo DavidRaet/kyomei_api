@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from pydantic import BaseModel, ConfigDict, alias_generators
 
 
@@ -54,7 +56,7 @@ class CharactersOut(CamelModel):
 
 
 class MeOut(CamelModel):
-    user_id: str
+    user_id: UUID
 
 
 class ErrorBody(BaseModel):

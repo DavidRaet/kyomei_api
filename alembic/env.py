@@ -5,6 +5,7 @@ from sqlalchemy import engine_from_config, pool
 from alembic import context
 from app.config import Settings
 from app.database.base import Base
+from app.database.models import User  # noqa: F401 - registers the users table in metadata
 from app.database.session import normalize_database_url
 
 config = context.config

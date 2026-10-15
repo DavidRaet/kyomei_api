@@ -24,6 +24,7 @@ jobs:
           - 5432:5432
     env:
       DATABASE_URL: postgresql://kyomei:kyomei@localhost:5432/kyomei
+      TEST_DATABASE_URL: postgresql://kyomei:kyomei@localhost:5432/kyomei
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5

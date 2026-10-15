@@ -38,3 +38,20 @@ Use concise conventional-style subjects such as `feat:`, `fix:`, `tests:`, `docs
 ## Security & Configuration
 
 Never commit `.env` or upstream credentials. Review CORS and rate-limit settings when changing middleware, and avoid logging secrets or full upstream payloads.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs live in local Markdown files under `.scratch/<feature>/`.
+See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Triage roles use the default names, recorded as issue `Status:` values.
+See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context layout: root `GLOSSARY.md` and `docs/adr/`.
+See `docs/agents/domain.md`.

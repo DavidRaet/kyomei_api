@@ -1,10 +1,10 @@
 # Kyomei API Contract
 
-**Last updated:** 2026-08-22
+**Last updated:** 2026-09-28
 
 This document is the single source of truth for the HTTP API boundary between:
 
-- **`kyomei_api`** — FastAPI backend service, owns AniList orchestration + caching now, and (eventually) recommendation logic and any server-side user state.
+- **`kyomei_api`** — FastAPI backend service, owns AniList orchestration and Kyomei user IDs now, and (eventually) recommendation logic and other server-side user state.
 - **`kyomei_0`** — TypeScript/Vite frontend, migrating anime metadata/browsing calls from direct AniList/Jikan access to `kyomei_api`, and will call it for personalized recommendations once that phase lands.
 
 This file is copy-pasted verbatim into both repositories. Neither side needs to read the other's source code — only this contract. If an endpoint, field, or status code isn't listed here, it doesn't exist yet. Propose changes via a PR to this file in both repos before implementing.
@@ -17,12 +17,13 @@ Per `docs/fastapi-backend-setup-checklist.md`, `kyomei_api` v1 is a BFF-style or
 - Anime lookup, search, character listing, trending, and seasonal listings, orchestrated server-side via AniList (GraphQL) — the sole upstream data source; there is no fallback provider (see `docs/Kyomei-MVP-PRD-v2.1.md`'s Design Decisions for why Jikan was dropped rather than kept as a fallback).
 - Shared caching of the above (in-memory for v1; Redis is a documented future upgrade, not required now).
 - Basic service health reporting.
+- Clerk-authenticated `GET /v1/me` and persistent Kyomei application user IDs.
 - `AnimeDetail.synopsis` is passed through verbatim from AniList's `description` field, which can contain raw HTML (e.g. `<br>`, `<i>`). `kyomei_api` does not sanitize it — `kyomei_0` must sanitize before any `dangerouslySetInnerHTML`/`innerHTML`-style render, since this string is untrusted third-party content.
 
 **Explicitly out of scope for `kyomei_api` (v1):**
 - Turning a user's watch history into a ranked recommendation list, and any other personalization logic. This was previously drafted as in-scope but has not been implemented — see `POST /v1/recommendations` under "Proposed / Not Yet Confirmed" below.
-- Clerk authentication for `GET /v1/me` only; anime and health routes remain public (see Auth section).
-- Any persistent server-side storage — PostgreSQL, Alembic migrations, watchlists, or user accounts. `kyomei_0` currently owns watchlist state locally (see `WatchlistEntry`). If/when this moves server-side, it will be added to this contract as a new versioned endpoint — see "Proposed / Not Yet Confirmed" below.
+- Other authenticated or personalized endpoints; anime and health routes remain public (see Auth section).
+- Persisted preferences, ratings, watchlists, or recommendations. `kyomei_0` currently owns watchlist state locally (see `WatchlistEntry`). If/when this moves server-side, it will be added to this contract as a new versioned endpoint — see "Proposed / Not Yet Confirmed" below.
 
 ## Conventions
 
@@ -287,18 +288,19 @@ Path param: `malId` (positive integer). No query params, no body.
 
 ### `GET /v1/me`
 
-Returns the currently authenticated Clerk user identity.
+Finds or creates the Kyomei application user linked to the verified Clerk identity and returns the internal Kyomei user ID. Repeated requests for the same Clerk identity return the same ID. The client cannot supply a user ID.
 
 **Response — success**
 
 ```typescript
 interface MeResponse {
-  userId: string;
+  userId: string; // Kyomei UUID, not the Clerk user ID
 }
 ```
 
 - `200 OK` — body is `MeResponse`.
 - `401 Unauthorized` — missing, invalid, expired, wrong-party, or non-session token. Body is `ErrorResponse` with `code: "unauthenticated"`.
+- `503 Service Unavailable` — the required database is not configured or is unreachable. Body is `ErrorResponse` with `code: "unavailable"`.
 
 ## Proposed / Not Yet Confirmed
 
@@ -357,8 +359,9 @@ interface RecommendationsResponse {
 ## Change Log
 
 | Date | Change |
-| 2026-09-14 | Added Clerk-backed `GET /v1/me`. Only this endpoint requires a verified Clerk session token; existing endpoints remain public. |
 |------|--------|
+| 2026-09-28 | `GET /v1/me` now finds or creates a Kyomei application user and returns its internal UUID as `userId`; added `503` for database unavailability. |
+| 2026-09-14 | Added Clerk-backed `GET /v1/me`. Only this endpoint requires a verified Clerk session token; existing endpoints remain public. |
 | 2026-08-22 | Added `upstream_unavailable` error code (`503`) for all five `/v1/anime/...` endpoints, used when AniList itself returns a non-2xx GraphQL response or a 200 response with no `data`. Timeouts and connection failures are unaffected and still map to `500`/`internal_error`. |
 | 2026-08-22 | `GET /v1/anime/{malId}` now returns `AnimeDetail` (extends `AnimeSummary` with `titleRomaji`, `synopsis`, `durationMinutes`, `airedFrom`, `airedTo`, `trailerImage`) so it matches `kyomei_0`'s detail page. `CharacterSummary` gained `favorites` and `voiceActors` (via `VoiceActorSummary`); the previous provisional-shape note is removed. List/search/trending/seasonal endpoints still return `AnimeSummary`. |
 | 2026-08-21 | Added `GET /v1/anime/trending` and `GET /v1/anime/seasonal`, both returning `AnimeSearchResponse`. Removed the Scope note that trending/seasonal were unsupported. |
