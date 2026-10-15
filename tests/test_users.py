@@ -1,12 +1,28 @@
 import asyncio
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
 from sqlalchemy import delete, select
+from sqlalchemy.exc import TimeoutError
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.database.errors import DatabaseUnavailableError
 from app.database.models import User
 from app.database.session import create_database_engine, create_session_factory
 from app.database.users import get_or_create_user_id
+
+
+@pytest.mark.asyncio
+async def test_user_lookup_maps_pool_timeout_to_database_unavailable():
+    session = MagicMock(spec=AsyncSession)
+    timeout = TimeoutError("Connection pool exhausted")
+    session.scalar = AsyncMock(side_effect=timeout)
+
+    with pytest.raises(DatabaseUnavailableError) as exc_info:
+        await get_or_create_user_id(session, "user_verified")
+
+    assert exc_info.value.__cause__ is timeout
 
 
 @pytest.mark.asyncio

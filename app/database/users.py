@@ -2,7 +2,7 @@ from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import OperationalError, TimeoutError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.errors import DatabaseUnavailableError
@@ -24,5 +24,5 @@ async def get_or_create_user_id(session: AsyncSession, clerk_user_id: str) -> UU
             if user_id is None:
                 raise RuntimeError("User lookup failed after insert conflict.")
             return user_id
-    except OperationalError as exc:
+    except (OperationalError, TimeoutError) as exc:
         raise DatabaseUnavailableError from exc
